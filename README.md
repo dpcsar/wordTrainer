@@ -143,7 +143,7 @@ Options:
 - `--model`: Path to trained model (.h5 or .tflite)
 - `--file`: Path to a single audio file to test
 - `--dir`: Directory containing audio files to test
-- `--num-samples`: Maximum number of samples to test in batch mode (default: 10)
+- `--samples`: Maximum number of samples to test in batch mode (default: 10)
 
 ### 6. Test Model with Microphone
 

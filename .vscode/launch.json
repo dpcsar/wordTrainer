@@ -60,7 +60,11 @@
             "program": "${workspaceFolder}/src/test_model_gtts.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": []
+            "args": [
+                "--keyword", "activate",
+                "--dir", "${workspaceFolder}/data/keywords/activate",
+                "--samples", "5"
+            ]
         },
         {
             "name": "Test Model (Microphone)",

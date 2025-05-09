@@ -12,10 +12,13 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import sys
 import time
+import glob
+from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.audio_utils import load_audio, extract_features, plot_waveform, plot_spectrogram
+from utils.config import MODELS_DIR, KEYWORDS_DIR
 
 class KeywordDetectionTester:
     def __init__(self, model_path, keywords_dir, sample_rate=16000):
@@ -130,6 +133,18 @@ class KeywordDetectionTester:
         # Transpose to get time on the first axis
         mfccs = mfccs.T
         
+        # Handle dimension matching for model input
+        if hasattr(self, 'input_details') and self.input_details:
+            expected_time_dim = self.input_details[0]['shape'][1]
+            if mfccs.shape[0] != expected_time_dim:
+                if mfccs.shape[0] > expected_time_dim:
+                    # Truncate longer sequences
+                    mfccs = mfccs[:expected_time_dim, :]
+                else:
+                    # Pad shorter sequences with zeros
+                    padding = np.zeros((expected_time_dim - mfccs.shape[0], mfccs.shape[1]))
+                    mfccs = np.vstack((mfccs, padding))
+        
         return mfccs
     
     def predict(self, features):
@@ -229,13 +244,13 @@ class KeywordDetectionTester:
         
         return result
     
-    def batch_test(self, directory, num_samples=10):
+    def batch_test(self, directory, samples=10):
         """
         Test model on multiple files from a directory.
         
         Args:
             directory: Directory containing audio files
-            num_samples: Maximum number of samples to test
+            samples: Maximum number of samples to test
             
         Returns:
             results: List of test results
@@ -251,9 +266,9 @@ class KeywordDetectionTester:
             print(f"No audio files found in {directory}")
             return []
         
-        # Limit number of samples
-        if num_samples < len(audio_files):
-            audio_files = audio_files[:num_samples]
+        # Limit number of samples if requested
+        if samples and samples < len(audio_files):
+            audio_files = audio_files[:samples]
         
         print(f"Testing {len(audio_files)} audio files")
         
@@ -307,25 +322,125 @@ class KeywordDetectionTester:
         
         return results
 
+def find_latest_model_by_keyword(keyword=None, models_dir=MODELS_DIR):
+    """
+    Find the latest TFLite model for a given keyword.
+    
+    Args:
+        keyword: Keyword to search for (e.g., 'activate')
+        models_dir: Directory containing models
+        
+    Returns:
+        Path to the latest model, or None if not found
+    """
+    # Check if models directory exists
+    if not os.path.isdir(models_dir):
+        print(f"Models directory not found: {models_dir}")
+        return None
+        
+    # Find TFLite models
+    tflite_files = glob.glob(os.path.join(models_dir, '*.tflite'))
+    if not tflite_files:
+        print(f"No TFLite models found in {models_dir}")
+        return None
+    
+    # If no keyword specified, return the most recent model
+    if not keyword:
+        tflite_files.sort(key=os.path.getmtime, reverse=True)
+        return tflite_files[0]
+        
+    # Try to find models with the keyword in metadata
+    metadata_path = os.path.join(models_dir, 'model_metadata.json')
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            matching_models = []
+            
+            for model_info in metadata.get('models', []):
+                model_name = model_info.get('name')
+                model_keywords = model_info.get('keywords', [])
+                
+                # Check if keyword matches
+                if keyword.lower() in [k.lower() for k in model_keywords]:
+                    # Find matching TFLite file
+                    for tflite_file in tflite_files:
+                        if model_name in os.path.basename(tflite_file):
+                            matching_models.append((tflite_file, model_info.get('timestamp', '')))
+            
+            if matching_models:
+                # Sort by timestamp
+                matching_models.sort(key=lambda x: x[1], reverse=True)
+                print(f"Found latest model for keyword '{keyword}': {os.path.basename(matching_models[0][0])}")
+                return matching_models[0][0]
+                
+        except Exception as e:
+            print(f"Error reading metadata: {str(e)}")
+    
+    # Fallback: search by filename
+    matching_files = [f for f in tflite_files if keyword.lower() in os.path.basename(f).lower()]
+    
+    if matching_files:
+        # Sort by modification time
+        matching_files.sort(key=os.path.getmtime, reverse=True)
+        print(f"Found latest model for keyword '{keyword}': {os.path.basename(matching_files[0])}")
+        return matching_files[0]
+    
+    print(f"No TFLite model found for keyword '{keyword}'")
+    return None
+
 def main():
     parser = argparse.ArgumentParser(description='Test keyword detection model using gTTS samples')
-    parser.add_argument('--model', type=str, required=True, 
+    parser.add_argument('--model', type=str,
                         help='Path to trained model (.h5 or .tflite)')
+    parser.add_argument('--keyword', type=str,
+                        help='Keyword to find the latest model for (e.g., "activate")')
     parser.add_argument('--file', type=str, 
                         help='Path to a single audio file to test')
     parser.add_argument('--dir', type=str, 
                         help='Directory containing audio files to test')
-    parser.add_argument('--num-samples', type=int, default=10, 
+    parser.add_argument('--samples', type=int, default=10, 
                         help='Maximum number of samples to test in batch mode')
     parser.add_argument('--keywords-dir', type=str, default='../data/keywords', 
                         help='Directory containing keyword samples')
+    parser.add_argument('--list-models', action='store_true',
+                        help='List available models and exit')
     args = parser.parse_args()
     
     # Convert relative paths to absolute paths if needed
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    if not os.path.isabs(args.model):
-        args.model = os.path.abspath(os.path.join(script_dir, args.model))
+    # List available models if requested
+    if args.list_models:
+        models_dir = os.path.abspath(os.path.join(script_dir, '..', 'models'))
+        tflite_files = glob.glob(os.path.join(models_dir, '*.tflite'))
+        if tflite_files:
+            print("Available models:")
+            for model in tflite_files:
+                print(f"  {os.path.basename(model)}")
+        else:
+            print("No models found.")
+        return
+    
+    # Get model path - either from --model parameter or by finding latest model for keyword
+    model_path = None
+    if args.model:
+        if not os.path.isabs(args.model):
+            model_path = os.path.abspath(os.path.join(script_dir, args.model))
+        else:
+            model_path = args.model
+    elif args.keyword:
+        model_path = find_latest_model_by_keyword(args.keyword)
+        if not model_path:
+            print(f"Error: No model found for keyword '{args.keyword}'")
+            return
+    else:
+        # If neither --model nor --keyword specified, try to find the most recent model
+        model_path = find_latest_model_by_keyword()
+        if not model_path:
+            print("Error: No model specified (use --model or --keyword) and no models found")
+            return
     
     if args.file and not os.path.isabs(args.file):
         args.file = os.path.abspath(os.path.join(script_dir, args.file))
@@ -336,7 +451,8 @@ def main():
     if not os.path.isabs(args.keywords_dir):
         args.keywords_dir = os.path.abspath(os.path.join(script_dir, args.keywords_dir))
     
-    tester = KeywordDetectionTester(args.model, args.keywords_dir)
+    # Create the tester with the model
+    tester = KeywordDetectionTester(model_path, args.keywords_dir)
     
     if args.file:
         # Test single file
@@ -344,7 +460,7 @@ def main():
     
     elif args.dir:
         # Batch test
-        tester.batch_test(args.dir, args.num_samples)
+        tester.batch_test(args.dir, args.samples)
     
     else:
         print("Error: Either --file or --dir must be specified")

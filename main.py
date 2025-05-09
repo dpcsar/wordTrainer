@@ -123,7 +123,7 @@ Examples:
     parser_tg.add_argument('--model', type=str, required=True, help='Path to trained model (.h5 or .tflite)')
     parser_tg.add_argument('--file', type=str, help='Path to a single audio file to test')
     parser_tg.add_argument('--dir', type=str, help='Directory containing audio files to test')
-    parser_tg.add_argument('--num-samples', type=int, default=10, help='Maximum number of samples to test in batch mode')
+    parser_tg.add_argument('--samples', type=int, default=10, help='Maximum number of samples to test in batch mode')
     parser_tg.add_argument('--keywords-dir', type=str, help='Directory containing keyword samples')
     
     # Test model with microphone command
@@ -215,8 +215,8 @@ Examples:
             cmd_args.extend(['--file', args.file])
         if args.dir:
             cmd_args.extend(['--dir', args.dir])
-        if args.num_samples:
-            cmd_args.extend(['--num-samples', str(args.num_samples)])
+        if args.samples:
+            cmd_args.extend(['--samples', str(args.samples)])
         if args.keywords_dir:
             cmd_args.extend(['--keywords-dir', args.keywords_dir])
         
