@@ -2,8 +2,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Main CLI",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
             "name": "Generate Keyword Samples",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/generate_keywords.py",
             "console": "integratedTerminal",
@@ -12,7 +21,7 @@
         },
         {
             "name": "Generate Background Noise",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/generate_background_noise.py",
             "console": "integratedTerminal",
@@ -21,7 +30,7 @@
         },
         {
             "name": "Mix Audio Samples",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/mix_audio_samples.py",
             "console": "integratedTerminal",
@@ -30,7 +39,7 @@
         },
         {
             "name": "Train Model",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/train_model.py",
             "console": "integratedTerminal",
@@ -39,7 +48,7 @@
         },
         {
             "name": "Test Model (gTTS)",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/test_model_gtts.py",
             "console": "integratedTerminal",
@@ -48,7 +57,7 @@
         },
         {
             "name": "Test Model (Microphone)",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/test_model_mic.py",
             "console": "integratedTerminal",
@@ -57,21 +66,12 @@
         },
         {
             "name": "Prepare for Android",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/prepare_for_android.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": []
         },
-        {
-            "name": "Main CLI",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/main.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": []
-        }
     ]
 }
