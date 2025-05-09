@@ -14,15 +14,20 @@ import json
 from tqdm import tqdm
 
 # Define available accents in gTTS
-ACCENTS = {
-    'us': 'American',
-    'uk': 'British',
-    'ca': 'Canadian',
-    'au': 'Australian',
-    'in': 'Indian',
-    'ie': 'Irish',
-    'za': 'South African'
-}
+ACCENTS = [
+            {"lang": "en", "tld": "com", "name": "US English", "gender": "male"},
+            {"lang": "en", "tld": "com", "name": "US English", "gender": "female"},
+            {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "male"},
+            {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "female"},
+            {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "male"},
+            {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "female"},
+            {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "male"},
+            {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "female"},
+            {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "male"},
+            {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "female"},
+            {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "male"},
+            {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "female"},
+        ]
 
 # Simulate different age groups by pitch shifting
 AGE_GROUPS = ['child', 'young_adult', 'adult', 'senior']
@@ -84,20 +89,32 @@ class KeywordGenerator:
         # Generate samples
         for i in tqdm(range(num_samples)):
             # Randomly select accent, age, gender
-            accent = random.choice(list(ACCENTS.keys()))
+            accent_info = random.choice(ACCENTS)
             age_group = random.choice(AGE_GROUPS)
-            gender = random.choice(GENDERS)
+            gender = accent_info["gender"]  # Use the gender from the accent info
             
             # Generate a unique ID for this sample
             sample_id = str(uuid.uuid4())[:8]
             
+            # Extract TLD for filename (e.g., "com" becomes "us", "co.uk" becomes "uk")
+            tld = accent_info["tld"]
+            # Convert TLD to a short country code
+            if tld == "com":
+                country_code = "us"
+            elif tld.startswith("co."):
+                country_code = tld.split(".")[-1]
+            elif tld.startswith("com."):
+                country_code = tld.split(".")[-1]
+            else:
+                country_code = tld
+                
             # Generate filename
-            filename = f"{keyword}_{accent}_{age_group}_{gender}_{sample_id}.wav"
+            filename = f"{keyword}_{country_code}_{age_group}_{gender}_{sample_id}.wav"
             file_path = os.path.join(keyword_dir, filename)
             
             # Generate TTS audio
             try:
-                tts = gTTS(text=keyword, lang='en', tld=accent)
+                tts = gTTS(text=keyword, lang=accent_info["lang"], tld=accent_info["tld"])
                 mp3_path = file_path.replace('.wav', '.mp3')
                 tts.save(mp3_path)
                 
@@ -142,8 +159,8 @@ class KeywordGenerator:
                     'id': sample_id,
                     'file': filename,
                     'keyword': keyword,
-                    'accent': accent,
-                    'accent_name': ACCENTS[accent],
+                    'accent': accent_info["tld"],
+                    'accent_name': accent_info["name"],
                     'age_group': age_group,
                     'gender': gender,
                     'duration_ms': len(audio),

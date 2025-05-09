@@ -17,7 +17,10 @@
             "program": "${workspaceFolder}/src/generate_keywords.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": []
+            "args": [
+                "--keyword", "activate",
+                "--num_samples", "10",
+            ]
         },
         {
             "name": "Generate Background Noise",
