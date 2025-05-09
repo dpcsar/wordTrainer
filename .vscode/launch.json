@@ -106,15 +106,6 @@
             ]
         },
         {
-            "name": "Prepare for Android",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/prepare_for_android.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": []
-        },
-        {
             "name": "Run Complete Workflow",
             "type": "debugpy",
             "request": "launch",
@@ -124,6 +115,15 @@
             "args": [
                 "activate"
             ]
-        }
+        },
+        {
+            "name": "Prepare for Android",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/prepare_for_android.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
     ]
 }
