@@ -77,6 +77,7 @@ class KeywordDetectionModelTrainer:
             dataset: Dictionary containing training and validation data
         """
         mixed_data_dir = os.path.join(self.data_dir, 'mixed')
+        backgrounds_dir = os.path.join(self.data_dir, 'backgrounds')
         
         # Check if mixed data directory exists
         if not os.path.exists(mixed_data_dir):
@@ -89,6 +90,15 @@ class KeywordDetectionModelTrainer:
         
         with open(mixed_metadata_path, 'r') as f:
             mixed_metadata = json.load(f)
+        
+        # Load background noise metadata
+        backgrounds_metadata_path = os.path.join(backgrounds_dir, 'metadata.json')
+        if os.path.exists(backgrounds_metadata_path):
+            with open(backgrounds_metadata_path, 'r') as f:
+                backgrounds_metadata = json.load(f)
+        else:
+            print(f"Warning: Background metadata not found at {backgrounds_metadata_path}")
+            backgrounds_metadata = {}
         
         # Prepare dataset
         dataset = {
@@ -110,7 +120,7 @@ class KeywordDetectionModelTrainer:
             self.keyword_to_index[keyword] = i + 1  # Reserve 0 for negative class
         
         # Load positive samples (keywords)
-        all_samples = []
+        positive_samples = []
         
         for keyword in keywords:
             if keyword not in mixed_metadata:
@@ -121,12 +131,57 @@ class KeywordDetectionModelTrainer:
             for sample in keyword_samples:
                 sample_path = os.path.join(mixed_data_dir, keyword, sample['file'])
                 if os.path.exists(sample_path):
-                    all_samples.append({
+                    positive_samples.append({
                         'path': sample_path,
                         'label': self.keyword_to_index[keyword],
                         'keyword': keyword,
                         'metadata': sample
                     })
+        
+        # Create negative samples using background noise
+        negative_samples = []
+        num_negative_samples = int(len(positive_samples) * negative_samples_ratio)
+        print(f"Creating {num_negative_samples} negative samples based on ratio {negative_samples_ratio}")
+        
+        # Add background noise as negative samples
+        for noise_type in ['propeller', 'jet', 'cockpit']:
+            if noise_type in backgrounds_metadata:
+                for sample in backgrounds_metadata[noise_type]['samples']:
+                    file_path = os.path.join(backgrounds_dir, noise_type, sample['file'])
+                    if os.path.exists(file_path):
+                        negative_samples.append({
+                            'path': file_path,
+                            'label': 0,  # 0 is for negative class
+                            'keyword': None,
+                            'metadata': sample
+                        })
+        
+        # If we don't have enough negative samples, create more by using keyword samples as negatives
+        # for other keywords (e.g., "hello" can be a negative example for "activate")
+        if len(negative_samples) < num_negative_samples and len(mixed_metadata) > 1:
+            for keyword in mixed_metadata:
+                if keyword not in keywords:  # Only use non-target keywords as negatives
+                    keyword_samples = mixed_metadata[keyword]['samples']
+                    for sample in keyword_samples:
+                        sample_path = os.path.join(mixed_data_dir, keyword, sample['file'])
+                        if os.path.exists(sample_path):
+                            negative_samples.append({
+                                'path': sample_path,
+                                'label': 0,  # 0 is for negative class
+                                'keyword': keyword,
+                                'metadata': sample
+                            })
+        
+        # If we still don't have enough negative samples, use segments from positive samples
+        # that don't contain the keyword (e.g., silence/background parts)
+        # Note: This would require more advanced audio processing
+
+        # Shuffle and limit negative samples to the desired ratio
+        random.shuffle(negative_samples)
+        negative_samples = negative_samples[:num_negative_samples]
+        
+        # Combine positive and negative samples
+        all_samples = positive_samples + negative_samples
         
         # Shuffle all samples
         random.shuffle(all_samples)
@@ -176,6 +231,13 @@ class KeywordDetectionModelTrainer:
         """
         try:
             audio, sr = load_audio(file_path, target_sr=self.sample_rate)
+            
+            # For negative samples (background noise), if the file is long, 
+            # take a random segment of appropriate length
+            if len(audio) > self.sample_rate * 2:  # If longer than 2 seconds
+                # For background noise, take a random segment
+                start = np.random.randint(0, len(audio) - self.sample_rate)
+                audio = audio[start:start + self.sample_rate]
             
             # Extract MFCCs
             mfccs = extract_features(
@@ -242,7 +304,7 @@ class KeywordDetectionModelTrainer:
         
         return model
     
-    def train_model(self, keywords, epochs=50, batch_size=32, validation_split=0.2, learning_rate=0.001):
+    def train_model(self, keywords, epochs=50, batch_size=32, validation_split=0.2, learning_rate=0.001, negative_samples_ratio=1.0):
         """
         Train a keyword detection model.
         
@@ -252,13 +314,14 @@ class KeywordDetectionModelTrainer:
             batch_size: Training batch size
             validation_split: Fraction of data to use for validation
             learning_rate: Initial learning rate
+            negative_samples_ratio: Ratio of negative samples to include (relative to positives)
             
         Returns:
             model: Trained TensorFlow model
             history: Training history
         """
         # Prepare dataset
-        dataset = self.prepare_dataset(keywords, validation_split=validation_split)
+        dataset = self.prepare_dataset(keywords, negative_samples_ratio=negative_samples_ratio, validation_split=validation_split)
         
         # Get input shape and number of classes
         input_shape = dataset['train']['features'][0].shape
@@ -458,6 +521,16 @@ class KeywordDetectionModelTrainer:
         # Create class names
         class_names = ['negative'] + keywords
         
+        # Check if we have both negative and positive samples in validation data
+        has_negative = 0 in validation_data['labels']
+        has_positive = any(label > 0 for label in validation_data['labels'])
+        
+        if not has_negative:
+            print("Warning: No negative samples in validation data!")
+        
+        if not has_positive:
+            print("Warning: No positive samples in validation data!")
+        
         # Confusion matrix
         cm = confusion_matrix(validation_data['labels'], predicted_classes)
         
@@ -467,6 +540,26 @@ class KeywordDetectionModelTrainer:
         plt.title('Confusion Matrix')
         plt.ylabel('True Label')
         plt.xlabel('Predicted Label')
+        
+        # Calculate and display metrics for each class
+        for i in range(len(class_names)):
+            if i in np.unique(validation_data['labels']):
+                true_positive = cm[i, i]
+                false_negative = np.sum(cm[i, :]) - true_positive
+                false_positive = np.sum(cm[:, i]) - true_positive
+                true_negative = np.sum(cm) - true_positive - false_negative - false_positive
+                
+                precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) > 0 else 0
+                recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0
+                specificity = true_negative / (true_negative + false_positive) if (true_negative + false_positive) > 0 else 0
+                f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+                
+                print(f"Class: {class_names[i]}")
+                print(f"  Precision: {precision:.4f}")
+                print(f"  Recall: {recall:.4f}")
+                print(f"  Specificity: {specificity:.4f}")
+                print(f"  F1-Score: {f1:.4f}")
+                print(f"  Support: {np.sum(validation_data['labels'] == i)}")
         
         # Save confusion matrix
         cm_path = os.path.join(plots_dir, f"{model_name}_confusion_matrix.png")
@@ -530,6 +623,8 @@ def main():
                         help='Training batch size')
     parser.add_argument('--learning-rate', type=float, default=0.001, 
                         help='Initial learning rate')
+    parser.add_argument('--negative-samples-ratio', type=float, default=1.0, 
+                        help='Ratio of negative samples to include (relative to positives)')
     args = parser.parse_args()
     
     # Convert relative paths to absolute paths if needed
@@ -546,7 +641,8 @@ def main():
         args.keywords,
         epochs=args.epochs,
         batch_size=args.batch_size,
-        learning_rate=args.learning_rate
+        learning_rate=args.learning_rate,
+        negative_samples_ratio=args.negative_samples_ratio
     )
 
 if __name__ == "__main__":

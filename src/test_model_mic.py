@@ -301,19 +301,29 @@ class MicrophoneDetector:
         confidence = predictions[predicted_class]
         predicted_label = self.class_names[predicted_class] if hasattr(self, 'class_names') else str(predicted_class)
         
+        # Show debug info for all predictions
+        keyword_confidences = {}
+        for i in range(len(predictions)):
+            class_label = self.class_names[i] if hasattr(self, 'class_names') else f"Class {i}"
+            keyword_confidences[class_label] = float(predictions[i])
+        
+        # Print the confidence for both negative and positive classes for debugging
+        neg_confidence = predictions[0] if len(predictions) > 0 else 0
+        pos_confidences = {self.class_names[i]: predictions[i] for i in range(1, len(predictions))}
+        
         # Only report keywords (not negative class) above threshold
         if predicted_class > 0 and confidence >= self.threshold:
-            print(f"Detected: {predicted_label} (Confidence: {confidence:.4f})")
+            print(f"Detected: {predicted_label} (Confidence: {confidence:.4f}, Negative: {neg_confidence:.4f})")
+        elif neg_confidence >= self.threshold:
+            print(f"No keyword detected (Negative confidence: {neg_confidence:.4f})")
         
         # Return result
         return {
             'predicted_class': int(predicted_class),
             'predicted_label': predicted_label,
             'confidence': float(confidence),
-            'predictions': {
-                self.class_names[i] if hasattr(self, 'class_names') else f"Class {i}": 
-                float(predictions[i]) for i in range(len(predictions))
-            }
+            'negative_confidence': float(neg_confidence),
+            'predictions': keyword_confidences
         }
     
     def start_detection(self, device=None):
