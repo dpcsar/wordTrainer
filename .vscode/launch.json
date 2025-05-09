@@ -19,7 +19,7 @@
             "justMyCode": true,
             "args": [
                 "--keyword", "activate",
-                "--num_samples", "10",
+                "--samples", "10",
             ]
         },
         {
