@@ -1,0 +1,12 @@
+numpy
+tensorflow
+tensorflow-lite
+gTTS
+pydub
+librosa
+sounddevice
+soundfile
+matplotlib
+scipy
+PyAudio
+tqdm

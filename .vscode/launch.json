@@ -1,0 +1,77 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Generate Keyword Samples",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/generate_keywords.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
+            "name": "Generate Background Noise",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/generate_background_noise.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
+            "name": "Mix Audio Samples",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/mix_audio_samples.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
+            "name": "Train Model",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/train_model.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
+            "name": "Test Model (gTTS)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/test_model_gtts.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
+            "name": "Test Model (Microphone)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/test_model_mic.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
+            "name": "Prepare for Android",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/prepare_for_android.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        },
+        {
+            "name": "Main CLI",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        }
+    ]
+}
