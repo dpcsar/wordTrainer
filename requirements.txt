@@ -1,6 +1,5 @@
 numpy
-tensorflow
-tensorflow-lite
+tensorflow-cpu
 gTTS
 pydub
 librosa
@@ -10,3 +9,4 @@ matplotlib
 scipy
 PyAudio
 tqdm
+seaborn
