@@ -39,15 +39,30 @@ EARLY_STOPPING_PATIENCE = 10
 # Detection settings
 DEFAULT_DETECTION_THRESHOLD = 0.5
 
-# Available accents in gTTS
-ACCENTS = {
-    'us': 'American',
-    'uk': 'British',
-    'ca': 'Canadian',
-    'au': 'Australian',
-    'in': 'Indian',
-    'ie': 'Irish',
-    'za': 'South African'
+# Available accents in gTTS with detailed information
+ACCENTS = [
+    {"lang": "en", "tld": "com", "name": "US English", "gender": "male"},
+    {"lang": "en", "tld": "com", "name": "US English", "gender": "female"},
+    {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "male"},
+    {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "female"},
+    {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "male"},
+    {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "female"},
+    {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "male"},
+    {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "female"},
+    {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "male"},
+    {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "female"},
+    {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "male"},
+    {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "female"},
+]
+
+# TLD to country code mapping for filename generation
+TLD_TO_COUNTRY = {
+    'com': 'us',
+    'co.uk': 'uk',
+    'com.au': 'au',
+    'co.in': 'in',
+    'ie': 'ie',
+    'ca': 'ca'
 }
 
 # Age groups for simulation

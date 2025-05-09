@@ -3,6 +3,7 @@ Generate keyword speech samples using gTTS with different accents and variations
 """
 
 import os
+import sys
 import argparse
 import random
 import numpy as np
@@ -13,27 +14,9 @@ import uuid
 import json
 from tqdm import tqdm
 
-# Define available accents in gTTS
-ACCENTS = [
-            {"lang": "en", "tld": "com", "name": "US English", "gender": "male"},
-            {"lang": "en", "tld": "com", "name": "US English", "gender": "female"},
-            {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "male"},
-            {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "female"},
-            {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "male"},
-            {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "female"},
-            {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "male"},
-            {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "female"},
-            {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "male"},
-            {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "female"},
-            {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "male"},
-            {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "female"},
-        ]
-
-# Simulate different age groups by pitch shifting
-AGE_GROUPS = ['child', 'young_adult', 'adult', 'senior']
-
-# Simulate different genders by pitch and formant shifting
-GENDERS = ['male', 'female']
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.config import ACCENTS, AGE_GROUPS, GENDERS, TLD_TO_COUNTRY
 
 class KeywordGenerator:
     def __init__(self, output_dir, sample_rate=16000):
