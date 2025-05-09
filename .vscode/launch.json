@@ -49,7 +49,9 @@
             "program": "${workspaceFolder}/src/train_model.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": []
+            "args": [
+                "--keyword", "activate",
+            ]
         },
         {
             "name": "Test Model (gTTS)",

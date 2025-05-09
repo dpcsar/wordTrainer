@@ -38,9 +38,7 @@ ENV/
 data/keywords/*
 data/backgrounds/*
 data/mixed/*
-!data/keywords/.gitkeep
-!data/backgrounds/.gitkeep
-!data/mixed/.gitkeep
+models/*
 
 # Tensorflow/models
 *.h5

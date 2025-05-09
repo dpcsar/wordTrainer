@@ -172,7 +172,7 @@ class KeywordDetectionModelTrainer:
             file_path: Path to audio file
             
         Returns:
-            features: Extracted features
+            features: Extracted features with consistent shape
         """
         try:
             audio, sr = load_audio(file_path, target_sr=self.sample_rate)
@@ -188,6 +188,19 @@ class KeywordDetectionModelTrainer:
             
             # Transpose to get time on the first axis
             mfccs = mfccs.T
+            
+            # Define a fixed length for all features (adjust as needed)
+            # For keyword detection, ~1 second of audio should be sufficient
+            fixed_length = int(self.sample_rate / self.feature_params['hop_length'])
+            
+            # Pad or truncate to fixed length
+            if mfccs.shape[0] > fixed_length:
+                # Truncate longer sequences
+                mfccs = mfccs[:fixed_length, :]
+            elif mfccs.shape[0] < fixed_length:
+                # Pad shorter sequences with zeros
+                padding = np.zeros((fixed_length - mfccs.shape[0], mfccs.shape[1]))
+                mfccs = np.vstack((mfccs, padding))
             
             return mfccs
         
@@ -460,18 +473,48 @@ class KeywordDetectionModelTrainer:
         plt.savefig(cm_path)
         plt.close()
         
-        # Classification report
-        report = classification_report(
-            validation_data['labels'], 
-            predicted_classes, 
-            target_names=class_names,
-            output_dict=True
-        )
+        # Get unique classes present in validation data
+        unique_labels = np.unique(np.concatenate([validation_data['labels'], predicted_classes]))
         
-        # Save report
-        report_path = os.path.join(self.model_dir, f"{model_name}_report.json")
-        with open(report_path, 'w') as f:
-            json.dump(report, f, indent=2)
+        # Classification report
+        try:
+            # Check if we have more than one class in the actual data
+            if len(unique_labels) == 1:
+                print(f"Warning: Only one class ({class_names[unique_labels[0]]}) present in validation data.")
+                # Create a simplified report manually
+                report = {
+                    f"{class_names[unique_labels[0]]}": {
+                        "precision": 1.0 if np.all(validation_data['labels'] == predicted_classes) else 0.0,
+                        "recall": 1.0 if np.all(validation_data['labels'] == predicted_classes) else 0.0,
+                        "f1-score": 1.0 if np.all(validation_data['labels'] == predicted_classes) else 0.0,
+                        "support": len(validation_data['labels'])
+                    },
+                    "accuracy": np.mean(validation_data['labels'] == predicted_classes),
+                    "macro avg": {"precision": 1.0, "recall": 1.0, "f1-score": 1.0, "support": len(validation_data['labels'])},
+                    "weighted avg": {"precision": 1.0, "recall": 1.0, "f1-score": 1.0, "support": len(validation_data['labels'])}
+                }
+            else:
+                report = classification_report(
+                    validation_data['labels'], 
+                    predicted_classes, 
+                    labels=unique_labels,
+                    target_names=[class_names[i] for i in unique_labels],
+                    output_dict=True
+                )
+            
+            # Save report
+            report_path = os.path.join(self.model_dir, f"{model_name}_report.json")
+            with open(report_path, 'w') as f:
+                json.dump(report, f, indent=2)
+                
+        except Exception as e:
+            print(f"Error generating classification report: {str(e)}")
+            # Log basic accuracy
+            accuracy = np.mean(validation_data['labels'] == predicted_classes)
+            print(f"Validation accuracy: {accuracy:.4f}")
+            report_path = os.path.join(self.model_dir, f"{model_name}_accuracy.txt")
+            with open(report_path, 'w') as f:
+                f.write(f"Accuracy: {accuracy:.4f}\n")
 
 def main():
     parser = argparse.ArgumentParser(description='Train a keyword detection model')

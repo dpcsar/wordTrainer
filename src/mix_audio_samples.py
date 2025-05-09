@@ -16,6 +16,17 @@ import random
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.audio_utils import load_audio, save_audio, mix_audio, calculate_snr
 
+# Custom JSON encoder to handle NumPy types
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
+
 class AudioMixer:
     def __init__(self, keywords_dir, backgrounds_dir, output_dir, sample_rate=16000):
         """
@@ -65,7 +76,7 @@ class AudioMixer:
     def _save_metadata(self):
         """Save metadata to file."""
         with open(self.metadata_path, 'w') as f:
-            json.dump(self.metadata, f, indent=2)
+            json.dump(self.metadata, f, indent=2, cls=NumpyEncoder)
     
     def get_keyword_samples(self, keyword):
         """
