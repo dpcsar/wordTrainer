@@ -75,7 +75,6 @@
             "justMyCode": true,
             "args": [
                 "--keyword", "activate",
-                "--device", "1",
             ]
         },
         {

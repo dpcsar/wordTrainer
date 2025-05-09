@@ -10,3 +10,6 @@ scipy
 PyAudio
 tqdm
 seaborn
+scikit-learn
+pathlib
+queue
