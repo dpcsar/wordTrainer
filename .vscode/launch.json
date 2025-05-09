@@ -14,31 +14,37 @@
             "name": "Generate Keyword Samples",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/generate_keywords.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
+                "generate-keywords",
                 "--keyword", "activate",
-                "--samples", "10",
+                "--samples", "50"
             ]
         },
         {
             "name": "Generate Background Noise",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/generate_background_noise.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": []
+            "args": [
+                "generate-noise",
+                "--type", "all",
+                "--samples", "20"
+            ]
         },
         {
             "name": "Generate Non-Keywords",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/generate_non_keywords.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
+                "generate-non-keywords",
                 "--samples", "50",
                 "--avoid-keyword", "activate"
             ]
@@ -47,46 +53,56 @@
             "name": "Mix Audio Samples",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/mix_audio_samples.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
+                "mix-audio",
                 "--keyword", "activate",
+                "--num-mixes", "100",
+                "--min-snr", "-5",
+                "--max-snr", "20"
             ]
         },
         {
             "name": "Train Model",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/train_model.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--keyword", "activate",
+                "train",
+                "--keywords", "activate",
+                "--epochs", "50",
+                "--batch-size", "32"
             ]
         },
         {
             "name": "Test Model (gTTS)",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/test_model_gtts.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--keyword", "activate",
-                "--dir", "${workspaceFolder}/data/keywords/activate",
-                "--samples", "5"
+                "test-gtts",
+                "--model", "${workspaceFolder}/models/keyword_detection_activate_*.tflite",
+                "--samples", "5",
+                "--dir", "${workspaceFolder}/data/keywords/activate"
             ]
         },
         {
             "name": "Test Model (Microphone)",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/test_model_mic.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--keyword", "activate",
+                "test-mic",
+                "--model", "${workspaceFolder}/models/keyword_detection_activate_*.tflite",
+                "--threshold", "0.6"
             ]
         },
         {
@@ -98,5 +114,16 @@
             "justMyCode": true,
             "args": []
         },
+        {
+            "name": "Run Complete Workflow",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_workflow.sh",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "activate"
+            ]
+        }
     ]
 }

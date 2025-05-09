@@ -97,6 +97,13 @@ Examples:
     parser_gn.add_argument('--min-duration', type=float, default=3.0, help='Minimum duration in seconds')
     parser_gn.add_argument('--max-duration', type=float, default=10.0, help='Maximum duration in seconds')
     
+    # Generate non-keywords command
+    parser_nk = subparsers.add_parser('generate-non-keywords', help='Generate non-keyword samples for training')
+    parser_nk.add_argument('--samples', type=int, default=50, help='Number of samples to generate')
+    parser_nk.add_argument('--output-dir', type=str, help='Output directory')
+    parser_nk.add_argument('--silence', type=int, default=500, help='Silence to add at beginning and end (milliseconds)')
+    parser_nk.add_argument('--avoid-keyword', type=str, help='Keyword to avoid using as non-keyword')
+    
     # Mix audio samples command
     parser_ma = subparsers.add_parser('mix-audio', help='Mix keyword samples with background noise')
     parser_ma.add_argument('--keyword', type=str, required=True, help='Keyword to mix')
@@ -168,6 +175,19 @@ Examples:
             cmd_args.extend(['--max-duration', str(args.max_duration)])
         
         run_module(os.path.join(src_dir, 'generate_background_noise.py'), cmd_args)
+    
+    elif args.command == 'generate-non-keywords':
+        cmd_args = []
+        if args.samples:
+            cmd_args.extend(['--samples', str(args.samples)])
+        if args.output_dir:
+            cmd_args.extend(['--output-dir', args.output_dir])
+        if args.silence:
+            cmd_args.extend(['--silence', str(args.silence)])
+        if args.avoid_keyword:
+            cmd_args.extend(['--avoid-keyword', args.avoid_keyword])
+        
+        run_module(os.path.join(src_dir, 'generate_non_keywords.py'), cmd_args)
     
     elif args.command == 'mix-audio':
         cmd_args = []

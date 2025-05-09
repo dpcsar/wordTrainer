@@ -48,7 +48,7 @@ fi
 # Step 3: Generate non-keywords for negative training
 echo -e "
 [Step 3/6] Generating non-keyword samples..."
-python src/generate_non_keywords.py --samples $SAMPLES --avoid-keyword "$KEYWORD"
+python main.py generate-non-keywords --samples $SAMPLES --avoid-keyword "$KEYWORD"
 if [ $? -ne 0 ]; then
   echo "Error generating non-keyword samples. Exiting."
   exit 1
@@ -66,7 +66,7 @@ fi
 # Step 5: Train model
 echo -e "
 [Step 5/6] Training keyword detection model..."
-python main.py train-model --keyword "$KEYWORD" --epochs $EPOCHS --batch-size $BATCH_SIZE
+python main.py train --keywords "$KEYWORD" --epochs $EPOCHS --batch-size $BATCH_SIZE
 if [ $? -ne 0 ]; then
   echo "Error training model. Exiting."
   exit 1
@@ -84,7 +84,7 @@ echo "Latest model: $LATEST_MODEL"
 # Step 6: Test model with gTTS samples
 echo -e "
 [Step 6/6] Testing model with gTTS samples..."
-python main.py test-model-gtts --keyword "$KEYWORD" --samples 5 --threshold $THRESHOLD
+python main.py test-gtts --model "$LATEST_MODEL" --samples 5 --dir "data/keywords/$KEYWORD"
 if [ $? -ne 0 ]; then
   echo "Error testing model with gTTS samples."
   # Continue anyway
@@ -96,7 +96,7 @@ echo "Workflow completed successfully!"
 echo "Trained model: $LATEST_MODEL"
 echo -e "
 You can now test the model using microphone input:"
-echo "python main.py test-model-mic --keyword \"$KEYWORD\" --threshold $THRESHOLD"
+echo "python main.py test-mic --model \"$LATEST_MODEL\" --threshold $THRESHOLD"
 echo -e "=======================================================
 "
 
@@ -104,5 +104,5 @@ echo -e "=======================================================
 read -p "Do you want to test the model with microphone input now? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-  python main.py test-model-mic --keyword "$KEYWORD" --threshold $THRESHOLD
+  python main.py test-mic --model "$LATEST_MODEL" --threshold $THRESHOLD
 fi
