@@ -8,18 +8,18 @@ import numpy as np
 import json
 import tensorflow as tf
 import time
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-import sounddevice as sd
-import soundfile as sf
-import queue
 import sys
 import threading
+import glob
 from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.audio_utils import extract_features
+from utils.config import MODELS_DIR
+
+import sounddevice as sd
+import queue
 
 class MicrophoneDetector:
     def __init__(self, model_path, threshold=0.5, sample_rate=16000):
@@ -37,8 +37,9 @@ class MicrophoneDetector:
         
         # Audio settings
         self.audio_duration = 2  # seconds
-        self.buffer_duration = 10  # seconds for visualization
         self.num_samples = int(self.audio_duration * sample_rate)
+        # Define a smaller buffer just for processing
+        self.buffer_duration = 5  # seconds for audio processing
         self.buffer_samples = int(self.buffer_duration * sample_rate)
         
         # Audio buffer
@@ -50,9 +51,7 @@ class MicrophoneDetector:
         # Queue for audio chunks
         self.audio_queue = queue.Queue()
         
-        # Create directory for saving recordings
-        self.recordings_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'recordings')
-        os.makedirs(self.recordings_dir, exist_ok=True)
+        # No longer saving recordings
         
         # Load model metadata
         model_dir = os.path.dirname(model_path)
@@ -209,6 +208,24 @@ class MicrophoneDetector:
         # Transpose to get time on the first axis
         mfccs = mfccs.T
         
+        # Get input shape from model if using TFLite
+        expected_time_steps = None
+        if self.model_type == 'tflite' and hasattr(self, 'input_details'):
+            expected_time_steps = self.input_details[0]['shape'][1]
+        
+        # Reshape if necessary
+        if expected_time_steps and mfccs.shape[0] != expected_time_steps:
+            # Resize features to match expected input shape
+            from scipy import signal
+            
+            # Use resampling to resize the time dimension
+            if mfccs.shape[0] > 0 and expected_time_steps > 0:
+                resampled_mfccs = np.zeros((expected_time_steps, mfccs.shape[1]))
+                for i in range(mfccs.shape[1]):
+                    resampled_mfccs[:, i] = signal.resample(mfccs[:, i], expected_time_steps)
+                mfccs = resampled_mfccs
+                # Feature resizing done silently
+        
         return mfccs
     
     def predict(self, features):
@@ -232,21 +249,36 @@ class MicrophoneDetector:
             return predictions[0]
         
         else:  # TFLite
-            # Ensure features have correct shape for input
+            # Get expected input shape
             input_shape = self.input_details[0]['shape']
-            if input_shape[0] == 1:  # Batch size of 1
-                features = np.expand_dims(features, axis=0).astype(np.float32)
             
-            # Set input tensor
-            self.interpreter.set_tensor(self.input_details[0]['index'], features)
+            # Check if dimensions match and reshape if needed
+            if features.shape[0] != input_shape[1] or features.shape[1] != input_shape[2]:
+                # If we can't reshape, we need to extract features again at the correct size
+                # Silently handle feature shape mismatch
+                if hasattr(self, 'extract_features'):
+                    # This would have already been handled in extract_features()
+                    pass
             
-            # Run inference
-            self.interpreter.invoke()
+            # Ensure features have correct shape for input (add batch dimension)
+            features_batch = np.expand_dims(features, axis=0).astype(np.float32)
             
-            # Get output tensor
-            predictions = self.interpreter.get_tensor(self.output_details[0]['index'])
-            
-            return predictions[0]
+            try:
+                # Set input tensor
+                self.interpreter.set_tensor(self.input_details[0]['index'], features_batch)
+                
+                # Run inference
+                self.interpreter.invoke()
+                
+                # Get output tensor
+                predictions = self.interpreter.get_tensor(self.output_details[0]['index'])
+                
+                return predictions[0]
+            except Exception as e:
+                print(f"Error during prediction: {e}")
+                # Return empty predictions (all zeros) as fallback
+                num_classes = self.output_details[0]['shape'][-1]
+                return np.zeros(num_classes)
     
     def detect_keyword(self, audio_data):
         """
@@ -272,16 +304,8 @@ class MicrophoneDetector:
         # Only report keywords (not negative class) above threshold
         if predicted_class > 0 and confidence >= self.threshold:
             print(f"Detected: {predicted_label} (Confidence: {confidence:.4f})")
-            
-            # Save recording
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{predicted_label}_{confidence:.2f}_{timestamp}.wav"
-            filepath = os.path.join(self.recordings_dir, filename)
-            
-            sf.write(filepath, audio_data, self.sample_rate)
-            print(f"Saved recording to {filepath}")
         
-        # Return result for visualization
+        # Return result
         return {
             'predicted_class': int(predicted_class),
             'predicted_label': predicted_label,
@@ -292,13 +316,12 @@ class MicrophoneDetector:
             }
         }
     
-    def start_detection(self, device=None, visualization=True):
+    def start_detection(self, device=None):
         """
         Start keyword detection from microphone.
         
         Args:
             device: Audio device index
-            visualization: Whether to show visualization
         """
         print(f"Starting keyword detection with keywords: {self.keywords}")
         print(f"Detection threshold: {self.threshold}")
@@ -319,116 +342,135 @@ class MicrophoneDetector:
         audio_thread.daemon = True
         audio_thread.start()
         
-        # Set up visualization
-        if visualization:
-            self.setup_visualization()
-        
         # Start audio stream
         with sd.InputStream(callback=self.audio_callback, channels=1, 
                            samplerate=self.sample_rate, blocksize=int(self.sample_rate * 0.1)):
             print("\nListening... Press Ctrl+C to stop")
             
             try:
-                if visualization:
-                    plt.show()
-                else:
-                    while True:
-                        time.sleep(0.1)
+                while True:
+                    time.sleep(0.1)
             
             except KeyboardInterrupt:
                 print("Stopping...")
+
+def find_latest_model_by_keyword(keyword=None, models_dir=MODELS_DIR):
+    """
+    Find the latest TFLite model for a given keyword.
     
-    def setup_visualization(self):
-        """Set up real-time visualization of audio and detections."""
-        # Create figure with two subplots
-        self.fig, (self.ax_wave, self.ax_pred) = plt.subplots(2, 1, figsize=(10, 8))
-        self.fig.canvas.manager.set_window_title('Keyword Detection')
+    Args:
+        keyword: Keyword to search for (e.g., 'activate')
+        models_dir: Directory containing models
         
-        # Set up waveform plot
-        self.x_wave = np.arange(self.buffer_samples) / self.sample_rate
-        self.line_wave, = self.ax_wave.plot(self.x_wave, np.zeros_like(self.x_wave))
+    Returns:
+        Path to the latest model, or None if not found
+    """
+    # Check if models directory exists
+    if not os.path.isdir(models_dir):
+        print(f"Models directory not found: {models_dir}")
+        return None
         
-        # Highlight the current detection window
-        window_start = (self.buffer_samples - self.num_samples) / self.sample_rate
-        window_end = self.buffer_duration
-        self.ax_wave.axvspan(window_start, window_end, color='yellow', alpha=0.2)
-        
-        self.ax_wave.set_xlim(0, self.buffer_duration)
-        self.ax_wave.set_ylim(-1, 1)
-        self.ax_wave.set_title('Audio Waveform')
-        self.ax_wave.set_xlabel('Time (s)')
-        self.ax_wave.set_ylabel('Amplitude')
-        
-        # Set up prediction bar plot
-        self.ax_pred.set_title('Keyword Detection Confidence')
-        self.ax_pred.set_xlabel('Class')
-        self.ax_pred.set_ylabel('Confidence')
-        
-        # Initialize bar plot with class names
-        num_classes = len(self.class_names) if hasattr(self, 'class_names') else 2
-        self.x_pred = np.arange(num_classes)
-        self.bar_pred = self.ax_pred.bar(
-            self.x_pred, 
-            np.zeros(num_classes),
-            tick_label=self.class_names if hasattr(self, 'class_names') else [f"Class {i}" for i in range(num_classes)]
-        )
-        
-        self.ax_pred.set_ylim(0, 1)
-        self.ax_pred.axhline(y=self.threshold, color='r', linestyle='-', alpha=0.5)
-        
-        # Add threshold label
-        self.ax_pred.text(
-            0.95, self.threshold + 0.05, 
-            f'Threshold: {self.threshold}', 
-            ha='right', va='bottom', color='red'
-        )
-        
-        plt.tight_layout()
-        
-        # Set up animation
-        self.ani = FuncAnimation(self.fig, self.update_plots, interval=100, blit=False)
+    # Find TFLite models
+    tflite_files = glob.glob(os.path.join(models_dir, '*.tflite'))
+    if not tflite_files:
+        print(f"No TFLite models found in {models_dir}")
+        return None
     
-    def update_plots(self, frame):
-        """Update visualization plots."""
-        # Update waveform plot
-        self.line_wave.set_ydata(self.audio_buffer)
-        
-        # Run detection on current window
-        result = self.detect_keyword(self.window)
-        
-        # Update prediction bars
-        for i, bar in enumerate(self.bar_pred):
-            class_name = self.class_names[i] if hasattr(self, 'class_names') else f"Class {i}"
-            bar.set_height(result['predictions'][class_name])
+    # If no keyword specified, return the most recent model
+    if not keyword:
+        tflite_files.sort(key=os.path.getmtime, reverse=True)
+        return tflite_files[0]
+    
+    # Try to find models with the keyword in metadata
+    metadata_path = os.path.join(models_dir, 'model_metadata.json')
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
             
-            # Color based on threshold
-            if i > 0 and result['predictions'][class_name] >= self.threshold:
-                bar.set_color('green')
-            else:
-                bar.set_color('blue')
-        
-        # Return artists that were updated
-        return [self.line_wave] + list(self.bar_pred)
+            matching_models = []
+            
+            for model_info in metadata.get('models', []):
+                model_name = model_info.get('name')
+                model_keywords = model_info.get('keywords', [])
+                
+                # Check if keyword matches
+                if keyword.lower() in [k.lower() for k in model_keywords]:
+                    # Find matching TFLite file
+                    for tflite_file in tflite_files:
+                        if model_name in os.path.basename(tflite_file):
+                            matching_models.append((tflite_file, model_info.get('timestamp', '')))
+            
+            if matching_models:
+                # Sort by timestamp
+                matching_models.sort(key=lambda x: x[1], reverse=True)
+                print(f"Found latest model for keyword '{keyword}': {os.path.basename(matching_models[0][0])}")
+                return matching_models[0][0]
+                
+        except Exception as e:
+            print(f"Error reading metadata: {str(e)}")
+    
+    # Fallback: search by filename
+    matching_files = [f for f in tflite_files if keyword.lower() in os.path.basename(f).lower()]
+    
+    if matching_files:
+        # Sort by modification time
+        matching_files.sort(key=os.path.getmtime, reverse=True)
+        print(f"Found latest model for keyword '{keyword}': {os.path.basename(matching_files[0])}")
+        return matching_files[0]
+    
+    print(f"No TFLite model found for keyword '{keyword}'")
+    return None
 
 def main():
     parser = argparse.ArgumentParser(description='Test keyword detection model using microphone')
-    parser.add_argument('--model', type=str, required=True, 
+    parser.add_argument('--model', type=str, 
                         help='Path to trained model (.h5 or .tflite)')
+    parser.add_argument('--keyword', type=str,
+                        help='Keyword to find the latest model for (e.g., "activate")')
     parser.add_argument('--threshold', type=float, default=0.5, 
                         help='Detection threshold')
     parser.add_argument('--device', type=int, 
                         help='Audio device index')
-    parser.add_argument('--no-viz', action='store_true',
-                        help='Disable visualization')
+    parser.add_argument('--list-models', action='store_true',
+                        help='List available models and exit')
     args = parser.parse_args()
     
-    # Convert relative paths to absolute paths if needed
-    if not os.path.isabs(args.model):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        args.model = os.path.abspath(os.path.join(script_dir, args.model))
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    detector = MicrophoneDetector(args.model, args.threshold)
-    detector.start_detection(args.device, not args.no_viz)
+    # List available models if requested
+    if args.list_models:
+        models_dir = os.path.abspath(os.path.join(script_dir, '..', 'models'))
+        tflite_files = glob.glob(os.path.join(models_dir, '*.tflite'))
+        if tflite_files:
+            print("Available models:")
+            for model in tflite_files:
+                print(f"  {os.path.basename(model)}")
+        else:
+            print("No models found.")
+        return
+    
+    # Get model path - either from --model parameter or by finding latest model for keyword
+    model_path = None
+    if args.model:
+        if not os.path.isabs(args.model):
+            model_path = os.path.abspath(os.path.join(script_dir, args.model))
+        else:
+            model_path = args.model
+    elif args.keyword:
+        model_path = find_latest_model_by_keyword(args.keyword)
+        if not model_path:
+            print(f"Error: No model found for keyword '{args.keyword}'")
+            return
+    else:
+        # If neither --model nor --keyword specified, try to find the most recent model
+        model_path = find_latest_model_by_keyword()
+        if not model_path:
+            print("Error: No model specified (use --model or --keyword) and no models found")
+            return
+    
+    detector = MicrophoneDetector(model_path, args.threshold)
+    detector.start_detection(args.device)
 
 if __name__ == "__main__":
     main()

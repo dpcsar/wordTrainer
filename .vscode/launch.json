@@ -73,7 +73,9 @@
             "program": "${workspaceFolder}/src/test_model_mic.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": []
+            "args": [
+                "--keyword", "activate"
+            ]
         },
         {
             "name": "Prepare for Android",
