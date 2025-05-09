@@ -32,6 +32,18 @@
             "args": []
         },
         {
+            "name": "Generate Non-Keywords",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/generate_non_keywords.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--samples", "50",
+                "--avoid-keyword", "activate"
+            ]
+        },
+        {
             "name": "Mix Audio Samples",
             "type": "debugpy",
             "request": "launch",

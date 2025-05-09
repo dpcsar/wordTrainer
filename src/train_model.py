@@ -78,6 +78,7 @@ class KeywordDetectionModelTrainer:
         """
         mixed_data_dir = os.path.join(self.data_dir, 'mixed')
         backgrounds_dir = os.path.join(self.data_dir, 'backgrounds')
+        non_keywords_dir = os.path.join(self.data_dir, 'keywords', 'non_keywords')
         
         # Check if mixed data directory exists
         if not os.path.exists(mixed_data_dir):
@@ -99,6 +100,18 @@ class KeywordDetectionModelTrainer:
         else:
             print(f"Warning: Background metadata not found at {backgrounds_metadata_path}")
             backgrounds_metadata = {}
+            
+        # Load non-keywords metadata if available
+        non_keywords_metadata = {}
+        non_keywords_metadata_path = os.path.join(self.data_dir, 'keywords', 'metadata.json')
+        if os.path.exists(non_keywords_metadata_path):
+            with open(non_keywords_metadata_path, 'r') as f:
+                keywords_metadata = json.load(f)
+                if "non_keywords" in keywords_metadata:
+                    non_keywords_metadata = {"non_keywords": keywords_metadata["non_keywords"]}
+                    print(f"Loaded {keywords_metadata['non_keywords']['count']} non-keyword samples")
+        else:
+            print(f"Warning: Non-keywords metadata not found at {non_keywords_metadata_path}")
         
         # Prepare dataset
         dataset = {
@@ -138,12 +151,28 @@ class KeywordDetectionModelTrainer:
                         'metadata': sample
                     })
         
-        # Create negative samples using background noise
+        # Create negative samples using background noise and non-keywords
         negative_samples = []
         num_negative_samples = int(len(positive_samples) * negative_samples_ratio)
         print(f"Creating {num_negative_samples} negative samples based on ratio {negative_samples_ratio}")
         
+        # Add non-keyword samples as negative examples (these are actual words, better for discrimination)
+        if "non_keywords" in non_keywords_metadata:
+            print("Adding non-keyword samples as negative examples...")
+            for sample in non_keywords_metadata["non_keywords"]["samples"]:
+                file_path = os.path.join(self.data_dir, 'keywords', 'non_keywords', sample['file'])
+                if os.path.exists(file_path):
+                    negative_samples.append({
+                        'path': file_path,
+                        'label': 0,  # 0 is for negative class
+                        'keyword': None,
+                        'non_keyword': sample.get('non_keyword'),
+                        'metadata': sample,
+                        'type': 'non-keyword'
+                    })
+        
         # Add background noise as negative samples
+        print("Adding background noise samples as negative examples...")
         for noise_type in ['propeller', 'jet', 'cockpit']:
             if noise_type in backgrounds_metadata:
                 for sample in backgrounds_metadata[noise_type]['samples']:
@@ -153,12 +182,14 @@ class KeywordDetectionModelTrainer:
                             'path': file_path,
                             'label': 0,  # 0 is for negative class
                             'keyword': None,
-                            'metadata': sample
+                            'metadata': sample,
+                            'type': 'background'
                         })
         
         # If we don't have enough negative samples, create more by using keyword samples as negatives
         # for other keywords (e.g., "hello" can be a negative example for "activate")
         if len(negative_samples) < num_negative_samples and len(mixed_metadata) > 1:
+            print("Adding other keyword samples as negative examples...")
             for keyword in mixed_metadata:
                 if keyword not in keywords:  # Only use non-target keywords as negatives
                     keyword_samples = mixed_metadata[keyword]['samples']
@@ -169,7 +200,8 @@ class KeywordDetectionModelTrainer:
                                 'path': sample_path,
                                 'label': 0,  # 0 is for negative class
                                 'keyword': keyword,
-                                'metadata': sample
+                                'metadata': sample,
+                                'type': 'other-keyword'
                             })
         
         # If we still don't have enough negative samples, use segments from positive samples
@@ -214,8 +246,33 @@ class KeywordDetectionModelTrainer:
             dataset[split]['features'] = np.array(dataset[split]['features'])
             dataset[split]['labels'] = np.array(dataset[split]['labels'])
         
+        # Count sample types in training set
+        negative_types = {}
+        negative_count = 0
+        positive_count = 0
+        
+        for i, label in enumerate(dataset['train']['labels']):
+            if label == 0:  # negative sample
+                negative_count += 1
+            else:
+                positive_count += 1
+                
+        # Print dataset statistics
         print(f"Dataset prepared with {len(dataset['train']['features'])} training and "
               f"{len(dataset['validation']['features'])} validation samples")
+        print(f"Training set: {positive_count} positive samples, {negative_count} negative samples")
+        
+        # Count negative sample types
+        negative_types_count = {}
+        for sample in negative_samples:
+            sample_type = sample.get('type', 'unknown')
+            if sample_type not in negative_types_count:
+                negative_types_count[sample_type] = 0
+            negative_types_count[sample_type] += 1
+            
+        print("Negative samples breakdown:")
+        for sample_type, count in negative_types_count.items():
+            print(f"  - {sample_type}: {count} samples")
               
         return dataset
     

@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
 """
-Generate keyword speech samples using gTTS with different accents and variations.
+Generate non-keyword speech samples using gTTS with different accents and variations.
+These serve as negative examples for training that are actual words (unlike background noise).
 """
 
 import os
@@ -18,10 +20,26 @@ from tqdm import tqdm
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.config import ACCENTS, AGE_GROUPS, GENDERS, TLD_TO_COUNTRY
 
-class KeywordGenerator:
+# List of common words to use as non-keywords
+# These are selected to be distinct from typical wake words 
+# but represent a variety of speech patterns
+NON_KEYWORDS = [
+    "hello", "thanks", "sorry", "please", "coffee", 
+    "water", "today", "weather", "music", "play",
+    "stop", "pause", "continue", "next", "previous",
+    "volume", "morning", "evening", "dinner", "lunch",
+    "breakfast", "meeting", "schedule", "reminder", "alarm",
+    "computer", "system", "network", "download", "upload",
+    "message", "email", "phone", "call", "text",
+    "picture", "photo", "camera", "video", "record",
+    "time", "date", "month", "year", "hour",
+    "minute", "second", "tomorrow", "yesterday", "weekend"
+]
+
+class NonKeywordGenerator:
     def __init__(self, output_dir, sample_rate=16000):
         """
-        Initialize KeywordGenerator.
+        Initialize NonKeywordGenerator.
         
         Args:
             output_dir: Directory to save generated samples
@@ -47,30 +65,38 @@ class KeywordGenerator:
         with open(self.metadata_path, 'w') as f:
             json.dump(self.metadata, f, indent=2)
     
-    def generate_keyword_samples(self, keyword, num_samples=100, silence_ms=500):
+    def generate_non_keyword_samples(self, num_samples=100, silence_ms=500, keyword_to_avoid=None):
         """
-        Generate keyword speech samples with different accents, ages, and genders.
+        Generate non-keyword speech samples with different words, accents, ages, and genders.
         
         Args:
-            keyword: The keyword to generate samples for
             num_samples: Number of samples to generate
             silence_ms: Silence to add at beginning and end (milliseconds)
+            keyword_to_avoid: Keyword to avoid using as non-keyword samples
         """
-        print(f"Generating {num_samples} samples for keyword: '{keyword}'")
+        print(f"Generating {num_samples} non-keyword samples")
         
-        # Create keyword directory if it doesn't exist
-        keyword_dir = os.path.join(self.output_dir, keyword)
-        os.makedirs(keyword_dir, exist_ok=True)
+        # Create non-keywords directory if it doesn't exist
+        non_keywords_dir = os.path.join(self.output_dir, "non_keywords")
+        os.makedirs(non_keywords_dir, exist_ok=True)
         
-        # Initialize keyword metadata if not exists
-        if keyword not in self.metadata:
-            self.metadata[keyword] = {
+        # Initialize non-keywords metadata if not exists
+        if "non_keywords" not in self.metadata:
+            self.metadata["non_keywords"] = {
                 'samples': [],
                 'count': 0
             }
         
+        # Filter out the keyword to avoid if provided
+        available_words = [word for word in NON_KEYWORDS if word != keyword_to_avoid]
+        if len(available_words) == 0:
+            available_words = NON_KEYWORDS
+        
         # Generate samples
         for i in tqdm(range(num_samples)):
+            # Select random non-keyword word
+            non_keyword = random.choice(available_words)
+            
             # Randomly select accent, age, gender
             accent_info = random.choice(ACCENTS)
             age_group = random.choice(AGE_GROUPS)
@@ -92,12 +118,12 @@ class KeywordGenerator:
                 country_code = tld
                 
             # Generate filename
-            filename = f"{keyword}_{country_code}_{age_group}_{gender}_{sample_id}.wav"
-            file_path = os.path.join(keyword_dir, filename)
+            filename = f"nonkw_{non_keyword}_{country_code}_{age_group}_{gender}_{sample_id}.wav"
+            file_path = os.path.join(non_keywords_dir, filename)
             
             # Generate TTS audio
             try:
-                tts = gTTS(text=keyword, lang=accent_info["lang"], tld=accent_info["tld"])
+                tts = gTTS(text=non_keyword, lang=accent_info["lang"], tld=accent_info["tld"])
                 mp3_path = file_path.replace('.wav', '.mp3')
                 tts.save(mp3_path)
                 
@@ -141,7 +167,7 @@ class KeywordGenerator:
                 sample_metadata = {
                     'id': sample_id,
                     'file': filename,
-                    'keyword': keyword,
+                    'non_keyword': non_keyword,
                     'accent': accent_info["tld"],
                     'accent_name': accent_info["name"],
                     'age_group': age_group,
@@ -149,8 +175,8 @@ class KeywordGenerator:
                     'duration_ms': len(audio),
                 }
                 
-                self.metadata[keyword]['samples'].append(sample_metadata)
-                self.metadata[keyword]['count'] += 1
+                self.metadata["non_keywords"]['samples'].append(sample_metadata)
+                self.metadata["non_keywords"]['count'] += 1
                 
                 # Save metadata every 10 samples
                 if i % 10 == 0:
@@ -164,14 +190,14 @@ class KeywordGenerator:
         
         # Save final metadata
         self._save_metadata()
-        print(f"Generated {num_samples} samples for keyword '{keyword}'")
+        print(f"Generated {num_samples} non-keyword samples")
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate keyword speech samples using gTTS')
-    parser.add_argument('--keyword', type=str, required=True, help='Keyword to generate samples for')
+    parser = argparse.ArgumentParser(description='Generate non-keyword speech samples using gTTS')
     parser.add_argument('--samples', type=int, default=50, help='Number of samples to generate')
     parser.add_argument('--output-dir', type=str, default='../data/keywords', help='Output directory')
     parser.add_argument('--silence', type=int, default=500, help='Silence to add at beginning and end (milliseconds)')
+    parser.add_argument('--avoid-keyword', type=str, help='Keyword to avoid using as non-keyword')
     args = parser.parse_args()
     
     # Convert relative path to absolute path if needed
@@ -179,8 +205,8 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         args.output_dir = os.path.abspath(os.path.join(script_dir, args.output_dir))
     
-    generator = KeywordGenerator(args.output_dir)
-    generator.generate_keyword_samples(args.keyword, args.samples, args.silence)
+    generator = NonKeywordGenerator(args.output_dir)
+    generator.generate_non_keyword_samples(args.samples, args.silence, args.avoid_keyword)
 
 if __name__ == "__main__":
     main()

@@ -7,11 +7,12 @@ A complete toolkit for training and testing keyword detection models for Android
 This project provides tools to:
 
 1. Generate keyword samples using Google Text-to-Speech (gTTS) with varying accents, ages, and genders
-2. Synthesize aircraft cockpit background noise (propeller aircraft, jet aircraft, cockpit ambience)
-3. Mix keywords with background noise at various Signal-to-Noise Ratios (SNR)
-4. Train TensorFlow Lite models for keyword detection
-5. Test models using both pre-recorded samples and microphone input
-6. Export models for use in Android Kotlin applications
+2. Generate non-keyword samples as negative training examples
+3. Synthesize aircraft cockpit background noise (propeller aircraft, jet aircraft, cockpit ambience)
+4. Mix keywords with background noise at various Signal-to-Noise Ratios (SNR)
+5. Train TensorFlow Lite models for keyword detection
+6. Test models using both pre-recorded samples and microphone input
+7. Export models for use in Android Kotlin applications
 
 ## Project Structure
 
@@ -19,6 +20,7 @@ This project provides tools to:
 wordTrainer/
 ├── src/               # Python source code
 │   ├── generate_keywords.py         # Generate keyword samples using gTTS
+│   ├── generate_non_keywords.py     # Generate non-keyword samples for negative training
 │   ├── generate_background_noise.py # Generate cockpit background noise
 │   ├── mix_audio_samples.py         # Mix keywords with noise at different SNRs
 │   ├── train_model.py               # Train keyword detection model
@@ -102,7 +104,23 @@ Options:
 - `--min-duration`: Minimum duration in seconds (default: 3.0)
 - `--max-duration`: Maximum duration in seconds (default: 10.0)
 
-### 3. Mix Keyword Samples with Background Noise
+### 3. Generate Non-Keyword Samples
+
+Generate non-keyword samples to improve model discrimination by providing realistic negative examples:
+
+```bash
+python src/generate_non_keywords.py --samples 50 --avoid-keyword "activate"
+```
+
+Options:
+- `--samples`: Number of samples to generate (default: 50)
+- `--output-dir`: Output directory (default: data/keywords)
+- `--silence`: Silence to add at beginning and end in milliseconds (default: 500)
+- `--avoid-keyword`: Keyword to avoid using as non-keyword samples (optional)
+
+Using non-keywords improves model discrimination by providing actual words as negative examples, not just background noise. This helps the model learn to reject similar-sounding words, reducing false positives in real-world usage.
+
+### 4. Mix Keyword Samples with Background Noise
 
 Mix keyword samples with background noise at various SNR levels:
 
@@ -117,7 +135,7 @@ Options:
 - `--min-snr`: Minimum SNR in dB (default: -5)
 - `--max-snr`: Maximum SNR in dB (default: 20)
 
-### 4. Train Model
+### 5. Train Model
 
 Train a keyword detection model:
 
@@ -125,13 +143,21 @@ Train a keyword detection model:
 python src/train_model.py --keywords "activate" "shutdown" --epochs 50 --batch-size 32
 ```
 
+The training process will use:
+- Positive examples: The specified keywords
+- Negative examples: 
+  - Non-keywords (common words generated as negative examples)
+  - Background noise samples
+  - Other keywords not specified for detection
+
 Options:
 - `--keywords`: Keywords to detect (multiple keywords can be specified)
 - `--epochs`: Number of training epochs (default: 50)
 - `--batch-size`: Training batch size (default: 32)
 - `--learning-rate`: Initial learning rate (default: 0.001)
+- `--negative-samples-ratio`: Ratio of negative samples to include (default: 1.0)
 
-### 5. Test Model with gTTS Samples
+### 6. Test Model with gTTS Samples
 
 Test the trained model using pre-recorded gTTS samples:
 
@@ -145,7 +171,7 @@ Options:
 - `--dir`: Directory containing audio files to test
 - `--samples`: Maximum number of samples to test in batch mode (default: 10)
 
-### 6. Test Model with Microphone
+### 7. Test Model with Microphone
 
 Test the trained model using real-time microphone input:
 
