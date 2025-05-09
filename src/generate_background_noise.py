@@ -85,7 +85,7 @@ class BackgroundNoiseGenerator:
         mixed_noise = 0.7 * prop_noise + 0.3 * white_noise
         
         # Apply low-pass filter to simulate real-world noise
-        b, a = signal.butter(4, 3000 / (self.sample_rate / 2), 'low')
+        b, a = signal.butter(4, 3000 / (self.sample_rate / 2), btype='low')
         filtered_noise = signal.filtfilt(b, a, mixed_noise)
         
         # Add engine rumble (low frequency components)
@@ -118,7 +118,7 @@ class BackgroundNoiseGenerator:
         white_noise = np.random.normal(0, 1, n_samples)
         
         # Convert to pink noise by applying 1/f filter
-        b, a = signal.butter(1, 4000 / (self.sample_rate / 2), 'low')
+        b, a = signal.butter(1, 4000 / (self.sample_rate / 2), btype='low')
         pink_noise = signal.filtfilt(b, a, white_noise)
         
         # Add high-frequency components for turbine whine
@@ -147,7 +147,15 @@ class BackgroundNoiseGenerator:
         mixed_noise = 0.7 * pink_noise + 0.2 * whine + 0.1 * rumble
         
         # Apply band-pass filter to shape spectrum
-        b, a = signal.butter(2, [100 / (self.sample_rate / 2), 8000 / (self.sample_rate / 2)], 'band')
+        nyquist = self.sample_rate / 2
+        cutoff_low = 100 / nyquist
+        cutoff_high = 8000 / nyquist
+        
+        # Ensure values are within valid range (0 < Wn < 1)
+        cutoff_low = max(0.001, min(cutoff_low, 0.99))
+        cutoff_high = max(cutoff_low + 0.001, min(cutoff_high, 0.99))
+        
+        b, a = signal.butter(2, [cutoff_low, cutoff_high], btype='band')
         filtered_noise = signal.filtfilt(b, a, mixed_noise)
         
         # Normalize
@@ -172,7 +180,7 @@ class BackgroundNoiseGenerator:
         white_noise = np.random.normal(0, 0.1, n_samples)
         
         # Convert part to pink noise (lower frequencies)
-        b, a = signal.butter(1, 1000 / (self.sample_rate / 2), 'low')
+        b, a = signal.butter(1, 1000 / (self.sample_rate / 2), btype='low')
         pink_noise = signal.filtfilt(b, a, white_noise)
         
         # Time array
