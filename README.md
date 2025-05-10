@@ -24,21 +24,20 @@ wordTrainer/
 │   ├── generate_background_noise.py # Generate cockpit background noise
 │   ├── mix_audio_samples.py         # Mix keywords with noise at different SNRs
 │   ├── train_model.py               # Train keyword detection model
-│   ├── test_model_gtts.py           # Test model using gTTS samples
-│   └── test_model_mic.py            # Test model using microphone input
-│
-├── utils/             # Utility functions
-│   └── audio_utils.py               # Audio processing utilities
 │
 ├── data/              # Audio data
 │   ├── keywords/      # Keyword samples
 │   ├── backgrounds/   # Background noise samples
 │   └── mixed/         # Mixed audio for training
 │
+├── tests/             # Test scripts
+│   ├── test_audio_utils.py          # Test audio utility functions
+│   ├── test_model_gtts.py           # Test model using gTTS samples
+│   ├── test_model_mic.py            # Test model using microphone input
+│   └── test_non_keywords.py         # Test non-keyword generation
+│
 ├── models/            # Trained models
 │   └── plots/         # Training plots and visualizations
-│
-├── recordings/        # Saved test recordings
 │
 ├── .vscode/           # VSCode configuration
 │   └── launch.json    # Launch configurations

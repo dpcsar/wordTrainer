@@ -131,7 +131,8 @@ Examples:
     
     # Test model with gTTS samples command
     parser_tg = subparsers.add_parser('test-gtts', help='Test model using gTTS samples')
-    parser_tg.add_argument('--model', type=str, required=True, help='Path to trained model (.h5 or .tflite)')
+    parser_tg.add_argument('--model', type=str, help='Path to trained model (.h5 or .tflite) otherwise it will use the latest model')
+    parser_tg.add_argument('--keyword', type=str, help='Keyword to find the latest model for or to test with')
     parser_tg.add_argument('--file', type=str, help='Path to a single audio file to test')
     parser_tg.add_argument('--dir', type=str, help='Directory containing audio files to test')
     parser_tg.add_argument('--samples', type=int, default=10, help='Maximum number of samples to test in batch mode')
@@ -139,7 +140,8 @@ Examples:
     
     # Test model with microphone command
     parser_tm = subparsers.add_parser('test-mic', help='Test model using microphone input')
-    parser_tm.add_argument('--model', type=str, required=True, help='Path to trained model (.h5 or .tflite)')
+    parser_tm.add_argument('--model', type=str, help='Path to trained model (.h5 or .tflite)')
+    parser_tm.add_argument('--keyword', type=str, help='Keyword to find the latest model for or to test with')
     parser_tm.add_argument('--threshold', type=float, default=0.5, help='Detection threshold')
     parser_tm.add_argument('--device', type=int, help='Audio device index')
     parser_tm.add_argument('--no-viz', action='store_true', help='Disable visualization')
@@ -150,6 +152,7 @@ Examples:
     # Get script directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     src_dir = os.path.join(script_dir, 'src')
+    tests_dir = os.path.join(script_dir, 'tests')
     
     # Process commands
     if args.command == 'generate-keywords':
@@ -235,6 +238,8 @@ Examples:
         cmd_args = []
         if args.model:
             cmd_args.extend(['--model', args.model])
+        if args.keyword:
+            cmd_args.extend(['--keyword', args.keyword])
         if args.file:
             cmd_args.extend(['--file', args.file])
         if args.dir:
@@ -244,7 +249,7 @@ Examples:
         if args.keywords_dir:
             cmd_args.extend(['--keywords-dir', args.keywords_dir])
         
-        run_module(os.path.join(src_dir, 'test_model_gtts.py'), cmd_args)
+        run_module(os.path.join(tests_dir, 'test_model_gtts.py'), cmd_args)
     
     elif args.command == 'test-mic':
         cmd_args = []
@@ -257,7 +262,7 @@ Examples:
         if args.no_viz:
             cmd_args.append('--no-viz')
         
-        run_module(os.path.join(src_dir, 'test_model_mic.py'), cmd_args)
+        run_module(os.path.join(tests_dir, 'test_model_mic.py'), cmd_args)
     
     else:
         parser.print_help()

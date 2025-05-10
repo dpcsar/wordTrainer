@@ -10,7 +10,7 @@ import json
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.config import KEYWORDS_DIR
+from config import KEYWORDS_DIR
 
 def test_non_keywords_exist():
     """Test if non-keywords directory and metadata exist."""

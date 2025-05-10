@@ -18,23 +18,7 @@ from tqdm import tqdm
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.config import ACCENTS, AGE_GROUPS, GENDERS, TLD_TO_COUNTRY
-
-# List of common words to use as non-keywords
-# These are selected to be distinct from typical wake words 
-# but represent a variety of speech patterns
-NON_KEYWORDS = [
-    "hello", "thanks", "sorry", "please", "coffee", 
-    "water", "today", "weather", "music", "play",
-    "stop", "pause", "continue", "next", "previous",
-    "volume", "morning", "evening", "dinner", "lunch",
-    "breakfast", "meeting", "schedule", "reminder", "alarm",
-    "computer", "system", "network", "download", "upload",
-    "message", "email", "phone", "call", "text",
-    "picture", "photo", "camera", "video", "record",
-    "time", "date", "month", "year", "hour",
-    "minute", "second", "tomorrow", "yesterday", "weekend"
-]
+from config import ACCENTS, AGE_GROUPS, NON_KEYWORDS
 
 class NonKeywordGenerator:
     def __init__(self, output_dir, sample_rate=16000):

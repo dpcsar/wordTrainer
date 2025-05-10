@@ -17,7 +17,8 @@ import random
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.audio_utils import load_audio, extract_features, augment_audio
+# Import from audio_utils
+from src.audio_utils import load_audio, extract_features
 
 class KeywordDetectionModelTrainer:
     def __init__(self, data_dir, model_dir, sample_rate=16000, feature_params=None):

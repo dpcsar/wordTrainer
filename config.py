@@ -5,7 +5,7 @@ Configuration settings for the keyword detection model.
 import os
 
 # Base directory
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Data directories
 DATA_DIR = os.path.join(BASE_DIR, 'data')
@@ -15,9 +15,6 @@ MIXED_DIR = os.path.join(DATA_DIR, 'mixed')
 
 # Models directory
 MODELS_DIR = os.path.join(BASE_DIR, 'models')
-
-# Recordings directory
-RECORDINGS_DIR = os.path.join(BASE_DIR, 'recordings')
 
 # Audio settings
 SAMPLE_RATE = 16000
@@ -55,21 +52,8 @@ ACCENTS = [
     {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "female"},
 ]
 
-# TLD to country code mapping for filename generation
-TLD_TO_COUNTRY = {
-    'com': 'us',
-    'co.uk': 'uk',
-    'com.au': 'au',
-    'co.in': 'in',
-    'ie': 'ie',
-    'ca': 'ca'
-}
-
 # Age groups for simulation
 AGE_GROUPS = ['child', 'young_adult', 'adult', 'senior']
-
-# Genders for simulation
-GENDERS = ['male', 'female']
 
 # Background noise types
 NOISE_TYPES = ['propeller', 'jet', 'cockpit']
@@ -77,6 +61,18 @@ NOISE_TYPES = ['propeller', 'jet', 'cockpit']
 # Default SNR range for mixing
 DEFAULT_SNR_RANGE = (-5, 20)
 
-# Create directories if they don't exist
-for directory in [KEYWORDS_DIR, BACKGROUNDS_DIR, MIXED_DIR, MODELS_DIR, RECORDINGS_DIR]:
-    os.makedirs(directory, exist_ok=True)
+# List of common words to use as non-keywords
+# These are selected to be distinct from typical wake words 
+# but represent a variety of speech patterns
+NON_KEYWORDS = [
+    "hello", "thanks", "sorry", "please", "coffee", 
+    "water", "today", "weather", "music", "play",
+    "stop", "pause", "continue", "next", "previous",
+    "volume", "morning", "evening", "dinner", "lunch",
+    "breakfast", "meeting", "schedule", "reminder", "alarm",
+    "computer", "system", "network", "download", "upload",
+    "message", "email", "phone", "call", "text",
+    "picture", "photo", "camera", "video", "record",
+    "time", "date", "month", "year", "hour",
+    "minute", "second", "tomorrow", "yesterday", "weekend"
+]

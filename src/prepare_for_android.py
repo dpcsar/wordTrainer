@@ -13,7 +13,7 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.config import MODELS_DIR
+from config import MODELS_DIR
 
 def prepare_for_android(model_path, output_dir=None):
     """

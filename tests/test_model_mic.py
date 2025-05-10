@@ -15,8 +15,8 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.audio_utils import extract_features
-from utils.config import MODELS_DIR
+from config import MODELS_DIR
+from src.audio_utils import extract_features
 
 import sounddevice as sd
 import queue
@@ -76,29 +76,11 @@ class MicrophoneDetector:
                 self.class_names = ['negative'] + self.keywords
                 print(f"Model keywords: {self.keywords}")
             else:
-                print(f"Warning: Model {model_name} not found in metadata")
-                self.keywords = []
-                self.feature_params = {}
-                # Try to infer from model
-                if model_path.endswith('.tflite'):
-                    interpreter = tf.lite.Interpreter(model_path=model_path)
-                    interpreter.allocate_tensors()
-                    output_details = interpreter.get_output_details()
-                    num_classes = output_details[0]['shape'][-1]
-                    self.keywords = [f"keyword_{i}" for i in range(1, num_classes)]
-                    self.class_names = ['negative'] + self.keywords
+                raise ValueError(f"Model {model_name} not found in metadata")
         else:
             print(f"Warning: Model metadata not found at {metadata_path}")
             self.keywords = []
             self.feature_params = {}
-            # Try to infer from model
-            if model_path.endswith('.tflite'):
-                interpreter = tf.lite.Interpreter(model_path=model_path)
-                interpreter.allocate_tensors()
-                output_details = interpreter.get_output_details()
-                num_classes = output_details[0]['shape'][-1]
-                self.keywords = [f"keyword_{i}" for i in range(1, num_classes)]
-                self.class_names = ['negative'] + self.keywords
         
         # Load model
         if model_path.endswith('.tflite'):
@@ -390,7 +372,7 @@ def find_latest_model_by_keyword(keyword=None, models_dir=MODELS_DIR):
     if not keyword:
         tflite_files.sort(key=os.path.getmtime, reverse=True)
         return tflite_files[0]
-    
+        
     # Try to find models with the keyword in metadata
     metadata_path = os.path.join(models_dir, 'model_metadata.json')
     if os.path.exists(metadata_path):
@@ -434,7 +416,7 @@ def find_latest_model_by_keyword(keyword=None, models_dir=MODELS_DIR):
 
 def main():
     parser = argparse.ArgumentParser(description='Test keyword detection model using microphone')
-    parser.add_argument('--model', type=str, 
+    parser.add_argument('--model', type=str,
                         help='Path to trained model (.h5 or .tflite)')
     parser.add_argument('--keyword', type=str,
                         help='Keyword to find the latest model for (e.g., "activate")')
@@ -446,6 +428,7 @@ def main():
                         help='List available models and exit')
     args = parser.parse_args()
     
+    # Convert relative paths to absolute paths if needed
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     # List available models if requested
@@ -464,7 +447,7 @@ def main():
     model_path = None
     if args.model:
         if not os.path.isabs(args.model):
-            model_path = os.path.abspath(os.path.join(script_dir, args.model))
+            model_path = os.path.abspath(os.path.join(script_dir, '..', args.model))
         else:
             model_path = args.model
     elif args.keyword:

@@ -20,7 +20,7 @@
             "args": [
                 "generate-keywords",
                 "--keyword", "activate",
-                "--samples", "50"
+                "--samples", "10"
             ]
         },
         {
@@ -33,7 +33,7 @@
             "args": [
                 "generate-noise",
                 "--type", "all",
-                "--samples", "20"
+                "--samples", "10"
             ]
         },
         {
@@ -45,7 +45,7 @@
             "justMyCode": true,
             "args": [
                 "generate-non-keywords",
-                "--samples", "50",
+                "--samples", "20",
                 "--avoid-keyword", "activate"
             ]
         },
@@ -59,7 +59,7 @@
             "args": [
                 "mix-audio",
                 "--keyword", "activate",
-                "--num-mixes", "100",
+                "--num-mixes", "50",
                 "--min-snr", "-5",
                 "--max-snr", "20"
             ]
@@ -87,9 +87,7 @@
             "justMyCode": true,
             "args": [
                 "test-gtts",
-                "--model", "${workspaceFolder}/models/keyword_detection_activate_*.tflite",
                 "--samples", "5",
-                "--dir", "${workspaceFolder}/data/keywords/activate"
             ]
         },
         {
@@ -101,19 +99,7 @@
             "justMyCode": true,
             "args": [
                 "test-mic",
-                "--model", "${workspaceFolder}/models/keyword_detection_activate_*.tflite",
                 "--threshold", "0.6"
-            ]
-        },
-        {
-            "name": "Run Complete Workflow",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/run_workflow.sh",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "activate"
             ]
         },
         {

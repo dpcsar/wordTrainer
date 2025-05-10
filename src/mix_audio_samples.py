@@ -14,7 +14,8 @@ import random
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.audio_utils import load_audio, save_audio, mix_audio, calculate_snr
+# Import from audio_utils
+from src.audio_utils import load_audio, save_audio, mix_audio, calculate_snr
 
 # Custom JSON encoder to handle NumPy types
 class NumpyEncoder(json.JSONEncoder):

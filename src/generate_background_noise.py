@@ -6,7 +6,6 @@ import os
 import argparse
 import numpy as np
 import soundfile as sf
-import librosa
 from scipy import signal
 import json
 import uuid
@@ -15,7 +14,8 @@ import sys
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.audio_utils import save_audio
+# Import from audio_utils
+from src.audio_utils import save_audio
 
 class BackgroundNoiseGenerator:
     def __init__(self, output_dir, sample_rate=16000):

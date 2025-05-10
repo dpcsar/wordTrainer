@@ -17,8 +17,8 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.audio_utils import load_audio, extract_features, plot_waveform, plot_spectrogram
-from utils.config import MODELS_DIR, KEYWORDS_DIR
+from config import MODELS_DIR, KEYWORDS_DIR
+from src.audio_utils import load_audio, extract_features, plot_waveform
 
 class KeywordDetectionTester:
     def __init__(self, model_path, keywords_dir, sample_rate=16000):
@@ -289,12 +289,21 @@ class KeywordDetectionTester:
             file = result['file']
             predicted = result['predicted_label']
             
-            # Try to extract true label from filename
+            # Try to extract true label from filename by looking in the keywords directory
             true_label = None
+            # First check if the keywords are in the self.keywords_dir
             for keyword in self.keywords:
-                if keyword in file.lower():
+                keyword_dir = os.path.join(self.keywords_dir, keyword)
+                if os.path.exists(keyword_dir) and keyword in file.lower():
                     true_label = keyword
                     break
+            
+            # If not found, fallback to checking the file name
+            if true_label is None:
+                for keyword in self.keywords:
+                    if keyword in file.lower():
+                        true_label = keyword
+                        break
             
             if true_label is None:
                 true_label = 'negative'  # Assume negative if no keyword found
@@ -402,7 +411,7 @@ def main():
                         help='Directory containing audio files to test')
     parser.add_argument('--samples', type=int, default=10, 
                         help='Maximum number of samples to test in batch mode')
-    parser.add_argument('--keywords-dir', type=str, default='../data/keywords', 
+    parser.add_argument('--keywords-dir', type=str, default=KEYWORDS_DIR, 
                         help='Directory containing keyword samples')
     parser.add_argument('--list-models', action='store_true',
                         help='List available models and exit')
@@ -427,7 +436,7 @@ def main():
     model_path = None
     if args.model:
         if not os.path.isabs(args.model):
-            model_path = os.path.abspath(os.path.join(script_dir, args.model))
+            model_path = os.path.abspath(os.path.join(script_dir, '..', args.model))
         else:
             model_path = args.model
     elif args.keyword:
@@ -463,7 +472,22 @@ def main():
         tester.batch_test(args.dir, args.samples)
     
     else:
-        print("Error: Either --file or --dir must be specified")
+        # If no file or dir specified, try to use keyword directory
+        # Use provided keyword or get first keyword from model metadata
+        keyword = args.keyword
+        if not keyword and hasattr(tester, 'keywords') and tester.keywords:
+            keyword = tester.keywords[0]
+            print(f"Using keyword from model metadata: '{keyword}'")
+        
+        if keyword:
+            keyword_dir = os.path.join(args.keywords_dir, keyword)
+            if os.path.exists(keyword_dir):
+                print(f"Using keyword directory: {keyword_dir}")
+                tester.batch_test(keyword_dir, args.samples)
+            else:
+                print(f"Error: Keyword directory not found: {keyword_dir}")
+        else:
+            print("Error: Either --file, --dir must be specified, or model must have keywords defined")
 
 if __name__ == "__main__":
     main()

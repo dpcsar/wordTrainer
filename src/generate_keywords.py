@@ -15,8 +15,9 @@ import json
 from tqdm import tqdm
 
 # Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.config import ACCENTS, AGE_GROUPS, GENDERS, TLD_TO_COUNTRY
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Import from audio_utils
+from config import ACCENTS, AGE_GROUPS
 
 class KeywordGenerator:
     def __init__(self, output_dir, sample_rate=16000):
