@@ -48,6 +48,10 @@ def run_module(module_path, args=None):
     # Load and run module
     module = load_module(module_path)
     
+    # Check if the module has a main function and call it
+    if hasattr(module, 'main') and callable(module.main):
+        module.main()
+    
     # Restore original argv
     sys.argv = original_argv
 
