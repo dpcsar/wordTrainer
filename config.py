@@ -40,9 +40,9 @@ DEFAULT_KEYWORD = "activate"  # Default keyword for model training and testing
 
 # Audio generation settings
 DEFAULT_KEYWORD_SAMPLES = 50
-DEFAULT_NON_KEYWORD_SAMPLES = 50  # Number of non-keyword samples to generate
+DEFAULT_NON_KEYWORD_SAMPLES = int(DEFAULT_KEYWORD_SAMPLES * DEFAULT_NEGATIVE_SAMPLES_RATIO)  # Based on negative samples ratio
 DEFAULT_SILENCE_MS = 500
-DEFAULT_BACKGROUND_SAMPLES = 200  # Originally 20, increased to match workflow script
+DEFAULT_BACKGROUND_SAMPLES = 200
 DEFAULT_MIN_DURATION = 3.0
 DEFAULT_MAX_DURATION = 10.0
 DEFAULT_NUM_MIXES = 100
