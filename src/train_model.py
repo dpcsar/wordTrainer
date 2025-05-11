@@ -99,7 +99,7 @@ class KeywordDetectionModelTrainer:
             
         # Load non-keywords metadata if available
         non_keywords_metadata = {}
-        non_keywords_metadata_path = os.path.join(self.data_dir, 'keywords', 'metadata.json')
+        non_keywords_metadata_path = os.path.join(non_keywords_dir.data_dir, 'metadata.json')
         if os.path.exists(non_keywords_metadata_path):
             with open(non_keywords_metadata_path, 'r') as f:
                 keywords_metadata = json.load(f)
