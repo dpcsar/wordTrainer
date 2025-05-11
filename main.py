@@ -13,7 +13,12 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import configuration settings
-from config import DEFAULT_DETECTION_THRESHOLD
+from config import (
+    DEFAULT_DETECTION_THRESHOLD, DEFAULT_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS,
+    DEFAULT_BACKGROUND_SAMPLES, DEFAULT_MIN_DURATION, DEFAULT_MAX_DURATION,
+    DEFAULT_NUM_MIXES, DEFAULT_SNR_RANGE, DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE,
+    DEFAULT_LEARNING_RATE, DEFAULT_TEST_SAMPLES
+)
 
 def load_module(module_path):
     """
@@ -91,24 +96,24 @@ Examples:
     # Generate keywords command
     parser_gk = subparsers.add_parser('generate-keywords', help='Generate keyword samples using gTTS')
     parser_gk.add_argument('--keyword', type=str, required=True, help='Keyword to generate samples for')
-    parser_gk.add_argument('--samples', type=int, default=50, help='Number of samples to generate')
+    parser_gk.add_argument('--samples', type=int, default=DEFAULT_KEYWORD_SAMPLES, help=f'Number of samples to generate (default: {DEFAULT_KEYWORD_SAMPLES})')
     parser_gk.add_argument('--output-dir', type=str, help='Output directory')
-    parser_gk.add_argument('--silence', type=int, default=500, help='Silence to add at beginning and end (milliseconds)')
+    parser_gk.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, help=f'Silence to add at beginning and end (milliseconds) (default: {DEFAULT_SILENCE_MS})')
     
     # Generate background noise command
     parser_gn = subparsers.add_parser('generate-noise', help='Generate background noise samples')
     parser_gn.add_argument('--type', type=str, choices=['propeller', 'jet', 'cockpit', 'all'], 
                         default='all', help='Type of noise to generate')
-    parser_gn.add_argument('--samples', type=int, default=20, help='Number of samples to generate')
+    parser_gn.add_argument('--samples', type=int, default=DEFAULT_BACKGROUND_SAMPLES, help=f'Number of samples to generate (default: {DEFAULT_BACKGROUND_SAMPLES})')
     parser_gn.add_argument('--output-dir', type=str, help='Output directory')
-    parser_gn.add_argument('--min-duration', type=float, default=3.0, help='Minimum duration in seconds')
-    parser_gn.add_argument('--max-duration', type=float, default=10.0, help='Maximum duration in seconds')
+    parser_gn.add_argument('--min-duration', type=float, default=DEFAULT_MIN_DURATION, help=f'Minimum duration in seconds (default: {DEFAULT_MIN_DURATION})')
+    parser_gn.add_argument('--max-duration', type=float, default=DEFAULT_MAX_DURATION, help=f'Maximum duration in seconds (default: {DEFAULT_MAX_DURATION})')
     
     # Generate non-keywords command
     parser_nk = subparsers.add_parser('generate-non-keywords', help='Generate non-keyword samples for training')
-    parser_nk.add_argument('--samples', type=int, default=50, help='Number of samples to generate')
+    parser_nk.add_argument('--samples', type=int, default=DEFAULT_KEYWORD_SAMPLES, help=f'Number of samples to generate (default: {DEFAULT_KEYWORD_SAMPLES})')
     parser_nk.add_argument('--output-dir', type=str, help='Output directory')
-    parser_nk.add_argument('--silence', type=int, default=500, help='Silence to add at beginning and end (milliseconds)')
+    parser_nk.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, help=f'Silence to add at beginning and end (milliseconds) (default: {DEFAULT_SILENCE_MS})')
     parser_nk.add_argument('--avoid-keyword', type=str, help='Keyword to avoid using as non-keyword')
     
     # Mix audio samples command
@@ -116,9 +121,9 @@ Examples:
     parser_ma.add_argument('--keyword', type=str, required=True, help='Keyword to mix')
     parser_ma.add_argument('--noise-types', type=str, nargs='+', choices=['propeller', 'jet', 'cockpit'], 
                         help='Types of background noise to mix with')
-    parser_ma.add_argument('--num-mixes', type=int, default=100, help='Number of mixed samples to generate')
-    parser_ma.add_argument('--min-snr', type=float, default=-5, help='Minimum SNR in dB')
-    parser_ma.add_argument('--max-snr', type=float, default=20, help='Maximum SNR in dB')
+    parser_ma.add_argument('--num-mixes', type=int, default=DEFAULT_NUM_MIXES, help=f'Number of mixed samples to generate (default: {DEFAULT_NUM_MIXES})')
+    parser_ma.add_argument('--min-snr', type=float, default=DEFAULT_SNR_RANGE[0], help=f'Minimum SNR in dB (default: {DEFAULT_SNR_RANGE[0]})')
+    parser_ma.add_argument('--max-snr', type=float, default=DEFAULT_SNR_RANGE[1], help=f'Maximum SNR in dB (default: {DEFAULT_SNR_RANGE[1]})')
     parser_ma.add_argument('--keywords-dir', type=str, help='Keywords directory')
     parser_ma.add_argument('--backgrounds-dir', type=str, help='Backgrounds directory')
     parser_ma.add_argument('--output-dir', type=str, help='Output directory')
@@ -128,9 +133,9 @@ Examples:
     parser_tm.add_argument('--keywords', type=str, nargs='+', required=True, help='Keywords to detect')
     parser_tm.add_argument('--data-dir', type=str, help='Directory containing audio data')
     parser_tm.add_argument('--model-dir', type=str, help='Directory to save trained models')
-    parser_tm.add_argument('--epochs', type=int, default=50, help='Number of training epochs')
-    parser_tm.add_argument('--batch-size', type=int, default=32, help='Training batch size')
-    parser_tm.add_argument('--learning-rate', type=float, default=0.001, help='Initial learning rate')
+    parser_tm.add_argument('--epochs', type=int, default=DEFAULT_EPOCHS, help=f'Number of training epochs (default: {DEFAULT_EPOCHS})')
+    parser_tm.add_argument('--batch-size', type=int, default=DEFAULT_BATCH_SIZE, help=f'Training batch size (default: {DEFAULT_BATCH_SIZE})')
+    parser_tm.add_argument('--learning-rate', type=float, default=DEFAULT_LEARNING_RATE, help=f'Initial learning rate (default: {DEFAULT_LEARNING_RATE})')
     
     # Test model with gTTS samples command
     parser_tg = subparsers.add_parser('test-gtts', help='Test model using gTTS samples')
@@ -138,7 +143,7 @@ Examples:
     parser_tg.add_argument('--keyword', type=str, help='Keyword to find the latest model for or to test with')
     parser_tg.add_argument('--file', type=str, help='Path to a single audio file to test')
     parser_tg.add_argument('--dir', type=str, help='Directory containing audio files to test')
-    parser_tg.add_argument('--samples', type=int, default=10, help='Maximum number of samples to test in batch mode')
+    parser_tg.add_argument('--samples', type=int, default=DEFAULT_TEST_SAMPLES, help=f'Maximum number of samples to test in batch mode (default: {DEFAULT_TEST_SAMPLES})')
     parser_tg.add_argument('--keywords-dir', type=str, help='Directory containing keyword samples')
     
     # Test model with non-keywords command
@@ -147,7 +152,7 @@ Examples:
     parser_tnk.add_argument('--keyword', type=str, help='Keyword to find the latest model for')
     parser_tnk.add_argument('--file', type=str, help='Path to a single audio file to test')
     parser_tnk.add_argument('--dir', type=str, help='Directory containing audio files to test')
-    parser_tnk.add_argument('--samples', type=int, default=10, help='Maximum number of samples to test in batch mode')
+    parser_tnk.add_argument('--samples', type=int, default=DEFAULT_TEST_SAMPLES, help=f'Maximum number of samples to test in batch mode (default: {DEFAULT_TEST_SAMPLES})')
     parser_tnk.add_argument('--keywords-dir', type=str, help='Directory containing keyword samples')
     parser_tnk.add_argument('--list-models', action='store_true', help='List available models and exit')
     parser_tnk.add_argument('--check-exist', action='store_true', help='Only check if non-keywords exist and exit')

@@ -29,7 +29,7 @@ class NumpyEncoder(json.JSONEncoder):
         return super(NumpyEncoder, self).default(obj)
 
 class AudioMixer:
-    def __init__(self, keywords_dir, backgrounds_dir, output_dir, sample_rate=16000):
+    def __init__(self, keywords_dir, backgrounds_dir, output_dir, sample_rate=None):
         """
         Initialize AudioMixer.
         
@@ -39,6 +39,9 @@ class AudioMixer:
             output_dir: Directory to save mixed samples
             sample_rate: Target sample rate for audio files
         """
+        from config import SAMPLE_RATE
+        if sample_rate is None:
+            sample_rate = SAMPLE_RATE
         self.keywords_dir = keywords_dir
         self.backgrounds_dir = backgrounds_dir
         self.output_dir = output_dir

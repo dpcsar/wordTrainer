@@ -15,14 +15,14 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import MODELS_DIR, DEFAULT_DETECTION_THRESHOLD
+from config import MODELS_DIR, DEFAULT_DETECTION_THRESHOLD, SAMPLE_RATE, DEFAULT_AUDIO_DURATION, DEFAULT_BUFFER_DURATION
 from src.audio_utils import extract_features
 
 import sounddevice as sd
 import queue
 
 class MicrophoneDetector:
-    def __init__(self, model_path, threshold=None, sample_rate=16000):
+    def __init__(self, model_path, threshold=None, sample_rate=SAMPLE_RATE):
         """
         Initialize MicrophoneDetector.
         
@@ -37,10 +37,10 @@ class MicrophoneDetector:
         self.sample_rate = sample_rate
         
         # Audio settings
-        self.audio_duration = 2  # seconds
+        self.audio_duration = DEFAULT_AUDIO_DURATION  # seconds
         self.num_samples = int(self.audio_duration * sample_rate)
         # Define a smaller buffer just for processing
-        self.buffer_duration = 5  # seconds for audio processing
+        self.buffer_duration = DEFAULT_BUFFER_DURATION  # seconds for audio processing
         self.buffer_samples = int(self.buffer_duration * sample_rate)
         
         # Audio buffer

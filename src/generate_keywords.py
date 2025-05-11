@@ -20,7 +20,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import ACCENTS, AGE_GROUPS
 
 class KeywordGenerator:
-    def __init__(self, output_dir, sample_rate=16000):
+    def __init__(self, output_dir, sample_rate=None):
         """
         Initialize KeywordGenerator.
         
@@ -28,6 +28,9 @@ class KeywordGenerator:
             output_dir: Directory to save generated samples
             sample_rate: Target sample rate for audio files
         """
+        from config import SAMPLE_RATE
+        if sample_rate is None:
+            sample_rate = SAMPLE_RATE
         self.output_dir = output_dir
         self.sample_rate = sample_rate
         self.metadata = {}

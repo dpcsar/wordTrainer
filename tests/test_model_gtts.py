@@ -16,11 +16,11 @@ import glob
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import MODELS_DIR, KEYWORDS_DIR
+from config import MODELS_DIR, KEYWORDS_DIR, SAMPLE_RATE
 from src.audio_utils import load_audio, extract_features, plot_waveform
 
 class KeywordDetectionTester:
-    def __init__(self, model_path, keywords_dir, sample_rate=16000):
+    def __init__(self, model_path, keywords_dir, sample_rate=SAMPLE_RATE):
         """
         Initialize KeywordDetectionTester.
         

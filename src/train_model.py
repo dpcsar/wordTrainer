@@ -17,11 +17,12 @@ import random
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# Import from audio_utils
+# Import from config and audio utils
+from config import VALIDATION_SPLIT, DEFAULT_NEGATIVE_SAMPLES_RATIO
 from src.audio_utils import load_audio, extract_features
 
 class KeywordDetectionModelTrainer:
-    def __init__(self, data_dir, model_dir, sample_rate=16000, feature_params=None):
+    def __init__(self, data_dir, model_dir, sample_rate=None, feature_params=None):
         """
         Initialize KeywordDetectionModelTrainer.
         
@@ -31,18 +32,14 @@ class KeywordDetectionModelTrainer:
             sample_rate: Audio sample rate
             feature_params: Dictionary of feature extraction parameters
         """
+        from config import SAMPLE_RATE, FEATURE_PARAMS
+        
         self.data_dir = data_dir
         self.model_dir = model_dir
-        self.sample_rate = sample_rate
+        self.sample_rate = sample_rate if sample_rate is not None else SAMPLE_RATE
         
         # Set default feature parameters if not provided
-        self.feature_params = feature_params or {
-            'n_mfcc': 13,
-            'n_fft': 512,
-            'hop_length': 160,
-            'window_length_ms': 30,
-            'window_step_ms': 10,
-        }
+        self.feature_params = feature_params or FEATURE_PARAMS
         
         # Create model directory if it doesn't exist
         os.makedirs(model_dir, exist_ok=True)
@@ -65,7 +62,7 @@ class KeywordDetectionModelTrainer:
         with open(self.metadata_path, 'w') as f:
             json.dump(self.model_metadata, f, indent=2)
     
-    def prepare_dataset(self, keywords, negative_samples_ratio=1.0, validation_split=0.2):
+    def prepare_dataset(self, keywords, negative_samples_ratio=DEFAULT_NEGATIVE_SAMPLES_RATIO, validation_split=VALIDATION_SPLIT):
         """
         Prepare dataset for training.
         

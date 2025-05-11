@@ -9,8 +9,12 @@ import librosa
 from pydub import AudioSegment
 from scipy import signal
 import matplotlib.pyplot as plt
+import sys
 
-def load_audio(file_path, target_sr=16000):
+# Add parent directory to path for imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+def load_audio(file_path, target_sr=None):
     """
     Load an audio file and resample to target sample rate.
     
@@ -22,10 +26,13 @@ def load_audio(file_path, target_sr=16000):
         audio_data: Audio samples as numpy array
         sr: Sample rate
     """
+    from config import SAMPLE_RATE
+    if target_sr is None:
+        target_sr = SAMPLE_RATE
     audio_data, sr = librosa.load(file_path, sr=target_sr)
     return audio_data, sr
 
-def save_audio(audio_data, file_path, sr=16000):
+def save_audio(audio_data, file_path, sr=None):
     """
     Save audio data to file.
     
@@ -34,6 +41,9 @@ def save_audio(audio_data, file_path, sr=16000):
         file_path: Output file path
         sr: Sample rate
     """
+    from config import SAMPLE_RATE
+    if sr is None:
+        sr = SAMPLE_RATE
     sf.write(file_path, audio_data, sr)
 
 def calculate_snr(signal, noise):
