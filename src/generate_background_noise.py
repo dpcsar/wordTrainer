@@ -14,17 +14,18 @@ import sys
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# Import from audio_utils
+# Import from audio_utils and config
 from src.audio_utils import save_audio
+from config import SAMPLE_RATE
 
 class BackgroundNoiseGenerator:
-    def __init__(self, output_dir, sample_rate=16000):
+    def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
         """
         Initialize BackgroundNoiseGenerator.
         
         Args:
             output_dir: Directory to save generated noise samples
-            sample_rate: Target sample rate for audio files
+            sample_rate: Target sample rate for audio files (defaults to SAMPLE_RATE from config)
         """
         self.output_dir = output_dir
         self.sample_rate = sample_rate

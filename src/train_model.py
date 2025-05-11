@@ -18,11 +18,11 @@ import random
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import from config and audio utils
-from config import VALIDATION_SPLIT, DEFAULT_NEGATIVE_SAMPLES_RATIO
+from config import VALIDATION_SPLIT, DEFAULT_NEGATIVE_SAMPLES_RATIO, SAMPLE_RATE, FEATURE_PARAMS, DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE, DEFAULT_LEARNING_RATE
 from src.audio_utils import load_audio, extract_features
 
 class KeywordDetectionModelTrainer:
-    def __init__(self, data_dir, model_dir, sample_rate=None, feature_params=None):
+    def __init__(self, data_dir, model_dir, sample_rate=SAMPLE_RATE, feature_params=None):
         """
         Initialize KeywordDetectionModelTrainer.
         
@@ -32,11 +32,9 @@ class KeywordDetectionModelTrainer:
             sample_rate: Audio sample rate
             feature_params: Dictionary of feature extraction parameters
         """
-        from config import SAMPLE_RATE, FEATURE_PARAMS
-        
         self.data_dir = data_dir
         self.model_dir = model_dir
-        self.sample_rate = sample_rate if sample_rate is not None else SAMPLE_RATE
+        self.sample_rate = sample_rate
         
         # Set default feature parameters if not provided
         self.feature_params = feature_params or FEATURE_PARAMS
@@ -359,7 +357,7 @@ class KeywordDetectionModelTrainer:
         
         return model
     
-    def train_model(self, keywords, epochs=50, batch_size=32, validation_split=0.2, learning_rate=0.001, negative_samples_ratio=1.0):
+    def train_model(self, keywords, epochs=DEFAULT_EPOCHS, batch_size=DEFAULT_BATCH_SIZE, validation_split=VALIDATION_SPLIT, learning_rate=DEFAULT_LEARNING_RATE, negative_samples_ratio=DEFAULT_NEGATIVE_SAMPLES_RATIO):
         """
         Train a keyword detection model.
         

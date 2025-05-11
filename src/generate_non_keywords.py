@@ -18,10 +18,10 @@ from tqdm import tqdm
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ACCENTS, AGE_GROUPS, NON_KEYWORDS
+from config import ACCENTS, AGE_GROUPS, NON_KEYWORDS, SAMPLE_RATE, DEFAULT_NON_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS, KEYWORDS_DIR, DEFAULT_KEYWORD
 
 class NonKeywordGenerator:
-    def __init__(self, output_dir, sample_rate=None):
+    def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
         """
         Initialize NonKeywordGenerator.
         
@@ -29,9 +29,6 @@ class NonKeywordGenerator:
             output_dir: Directory to save generated samples
             sample_rate: Target sample rate for audio files
         """
-        from config import SAMPLE_RATE
-        if sample_rate is None:
-            sample_rate = SAMPLE_RATE
         self.output_dir = output_dir
         self.sample_rate = sample_rate
         self.metadata = {}
@@ -52,14 +49,14 @@ class NonKeywordGenerator:
         with open(self.metadata_path, 'w') as f:
             json.dump(self.metadata, f, indent=2)
     
-    def generate_non_keyword_samples(self, num_samples=100, silence_ms=500, keyword_to_avoid=None):
+    def generate_non_keyword_samples(self, num_samples=DEFAULT_NON_KEYWORD_SAMPLES, silence_ms=DEFAULT_SILENCE_MS, keyword_to_avoid=DEFAULT_KEYWORD):
         """
         Generate non-keyword speech samples with different words, accents, ages, and genders.
         
         Args:
-            num_samples: Number of samples to generate
-            silence_ms: Silence to add at beginning and end (milliseconds)
-            keyword_to_avoid: Keyword to avoid using as non-keyword samples
+            num_samples: Number of samples to generate (default: DEFAULT_NON_KEYWORD_SAMPLES)
+            silence_ms: Silence to add at beginning and end (milliseconds) (default: DEFAULT_SILENCE_MS)
+            keyword_to_avoid: Keyword to avoid using as non-keyword samples (default: DEFAULT_KEYWORD)
         """
         print(f"Generating {num_samples} non-keyword samples")
         
@@ -181,10 +178,13 @@ class NonKeywordGenerator:
 
 def main():
     parser = argparse.ArgumentParser(description='Generate non-keyword speech samples using gTTS')
-    parser.add_argument('--samples', type=int, default=50, help='Number of samples to generate')
-    parser.add_argument('--output-dir', type=str, default='../data/keywords', help='Output directory')
-    parser.add_argument('--silence', type=int, default=500, help='Silence to add at beginning and end (milliseconds)')
-    parser.add_argument('--avoid-keyword', type=str, help='Keyword to avoid using as non-keyword')
+    parser.add_argument('--samples', type=int, default=DEFAULT_NON_KEYWORD_SAMPLES, 
+                        help=f'Number of samples to generate (default: {DEFAULT_NON_KEYWORD_SAMPLES})')
+    parser.add_argument('--output-dir', type=str, default=KEYWORDS_DIR, help='Output directory')
+    parser.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, 
+                        help=f'Silence to add at beginning and end in milliseconds (default: {DEFAULT_SILENCE_MS})')
+    parser.add_argument('--avoid-keyword', type=str, default=DEFAULT_KEYWORD,
+                        help=f'Keyword to avoid using as non-keyword (default: {DEFAULT_KEYWORD})')
     args = parser.parse_args()
     
     # Convert relative path to absolute path if needed

@@ -17,18 +17,18 @@ import glob
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import MODELS_DIR, KEYWORDS_DIR
+from config import MODELS_DIR, KEYWORDS_DIR, SAMPLE_RATE
 from src.audio_utils import load_audio, extract_features, plot_waveform
 
 class NonKeywordTester:
-    def __init__(self, model_path, keywords_dir, sample_rate=16000):
+    def __init__(self, model_path, keywords_dir, sample_rate=SAMPLE_RATE):
         """
         Initialize NonKeywordTester.
         
         Args:
             model_path: Path to trained model (.h5 or .tflite)
             keywords_dir: Directory containing keyword samples
-            sample_rate: Audio sample rate
+            sample_rate: Audio sample rate (default from config.SAMPLE_RATE)
         """
         self.model_path = model_path
         self.keywords_dir = keywords_dir

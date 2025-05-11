@@ -16,11 +16,11 @@ from tqdm import tqdm
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# Import from audio_utils
-from config import ACCENTS, AGE_GROUPS
+# Import from config
+from config import ACCENTS, AGE_GROUPS, SAMPLE_RATE, DEFAULT_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS, DEFAULT_KEYWORD
 
 class KeywordGenerator:
-    def __init__(self, output_dir, sample_rate=None):
+    def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
         """
         Initialize KeywordGenerator.
         
@@ -28,9 +28,6 @@ class KeywordGenerator:
             output_dir: Directory to save generated samples
             sample_rate: Target sample rate for audio files
         """
-        from config import SAMPLE_RATE
-        if sample_rate is None:
-            sample_rate = SAMPLE_RATE
         self.output_dir = output_dir
         self.sample_rate = sample_rate
         self.metadata = {}
@@ -51,14 +48,14 @@ class KeywordGenerator:
         with open(self.metadata_path, 'w') as f:
             json.dump(self.metadata, f, indent=2)
     
-    def generate_keyword_samples(self, keyword, num_samples=100, silence_ms=500):
+    def generate_keyword_samples(self, keyword, num_samples=DEFAULT_KEYWORD_SAMPLES, silence_ms=DEFAULT_SILENCE_MS):
         """
         Generate keyword speech samples with different accents, ages, and genders.
         
         Args:
             keyword: The keyword to generate samples for
-            num_samples: Number of samples to generate
-            silence_ms: Silence to add at beginning and end (milliseconds)
+            num_samples: Number of samples to generate (default: from config.DEFAULT_KEYWORD_SAMPLES)
+            silence_ms: Silence to add at beginning and end in milliseconds (default: from config.DEFAULT_SILENCE_MS)
         """
         print(f"Generating {num_samples} samples for keyword: '{keyword}'")
         
@@ -172,10 +169,12 @@ class KeywordGenerator:
 
 def main():
     parser = argparse.ArgumentParser(description='Generate keyword speech samples using gTTS')
-    parser.add_argument('--keyword', type=str, required=True, help='Keyword to generate samples for')
-    parser.add_argument('--samples', type=int, default=50, help='Number of samples to generate')
+    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to generate samples for (default: {DEFAULT_KEYWORD})')
+    parser.add_argument('--samples', type=int, default=DEFAULT_KEYWORD_SAMPLES, 
+                        help=f'Number of samples to generate (default: {DEFAULT_KEYWORD_SAMPLES})')
     parser.add_argument('--output-dir', type=str, default='../data/keywords', help='Output directory')
-    parser.add_argument('--silence', type=int, default=500, help='Silence to add at beginning and end (milliseconds)')
+    parser.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, 
+                        help=f'Silence to add at beginning and end in milliseconds (default: {DEFAULT_SILENCE_MS})')
     args = parser.parse_args()
     
     # Convert relative path to absolute path if needed

@@ -13,8 +13,9 @@ import sys
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from config import SAMPLE_RATE, FEATURE_PARAMS
 
-def load_audio(file_path, target_sr=None):
+def load_audio(file_path, target_sr=SAMPLE_RATE):
     """
     Load an audio file and resample to target sample rate.
     
@@ -26,13 +27,10 @@ def load_audio(file_path, target_sr=None):
         audio_data: Audio samples as numpy array
         sr: Sample rate
     """
-    from config import SAMPLE_RATE
-    if target_sr is None:
-        target_sr = SAMPLE_RATE
     audio_data, sr = librosa.load(file_path, sr=target_sr)
     return audio_data, sr
 
-def save_audio(audio_data, file_path, sr=None):
+def save_audio(audio_data, file_path, sr=SAMPLE_RATE):
     """
     Save audio data to file.
     
@@ -41,9 +39,6 @@ def save_audio(audio_data, file_path, sr=None):
         file_path: Output file path
         sr: Sample rate
     """
-    from config import SAMPLE_RATE
-    if sr is None:
-        sr = SAMPLE_RATE
     sf.write(file_path, audio_data, sr)
 
 def calculate_snr(signal, noise):
@@ -123,20 +118,21 @@ def mix_audio(signal, noise, target_snr_db):
         
     return mixed
 
-def extract_features(audio, sr=16000, n_mfcc=13, n_fft=512, hop_length=160):
+def extract_features(audio, sr=SAMPLE_RATE, n_mfcc=FEATURE_PARAMS['n_mfcc'], n_fft=FEATURE_PARAMS['n_fft'], hop_length=FEATURE_PARAMS['hop_length']):
     """
     Extract MFCC features from audio.
     
     Args:
         audio: Audio samples
-        sr: Sample rate
-        n_mfcc: Number of MFCCs to extract
-        n_fft: FFT window size
-        hop_length: Hop length for FFT
+        sr: Sample rate (default from config.SAMPLE_RATE)
+        n_mfcc: Number of MFCCs to extract (default from config.FEATURE_PARAMS)
+        n_fft: FFT window size (default from config.FEATURE_PARAMS)
+        hop_length: Hop length for FFT (default from config.FEATURE_PARAMS)
         
     Returns:
         mfccs: MFCC features
     """
+        
     mfccs = librosa.feature.mfcc(
         y=audio, 
         sr=sr, 
@@ -148,13 +144,13 @@ def extract_features(audio, sr=16000, n_mfcc=13, n_fft=512, hop_length=160):
     mfccs = (mfccs - np.mean(mfccs, axis=1, keepdims=True)) / (np.std(mfccs, axis=1, keepdims=True) + 1e-8)
     return mfccs
 
-def plot_waveform(audio, sr=16000, title="Waveform"):
+def plot_waveform(audio, sr=SAMPLE_RATE, title="Waveform"):
     """
     Plot waveform of audio.
     
     Args:
         audio: Audio samples
-        sr: Sample rate
+        sr: Sample rate (default from config.SAMPLE_RATE)
         title: Plot title
     """
     plt.figure(figsize=(10, 4))
@@ -165,13 +161,13 @@ def plot_waveform(audio, sr=16000, title="Waveform"):
     plt.tight_layout()
     plt.show()
 
-def plot_spectrogram(audio, sr=16000, title="Spectrogram"):
+def plot_spectrogram(audio, sr=SAMPLE_RATE, title="Spectrogram"):
     """
     Plot spectrogram of audio.
     
     Args:
         audio: Audio samples
-        sr: Sample rate
+        sr: Sample rate (default from config.SAMPLE_RATE)
         title: Plot title
     """
     plt.figure(figsize=(10, 4))
@@ -182,13 +178,13 @@ def plot_spectrogram(audio, sr=16000, title="Spectrogram"):
     plt.tight_layout()
     plt.show()
 
-def augment_audio(audio, sr=16000):
+def augment_audio(audio, sr=SAMPLE_RATE):
     """
     Apply random augmentation to audio.
     
     Args:
         audio: Audio samples
-        sr: Sample rate
+        sr: Sample rate (default from config.SAMPLE_RATE)
         
     Returns:
         augmented_audio: Augmented audio

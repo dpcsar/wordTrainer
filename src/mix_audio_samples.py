@@ -14,7 +14,8 @@ import random
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# Import from audio_utils
+# Import from config and audio_utils
+from config import SAMPLE_RATE, DEFAULT_NUM_MIXES, DEFAULT_SNR_RANGE
 from src.audio_utils import load_audio, save_audio, mix_audio, calculate_snr
 
 # Custom JSON encoder to handle NumPy types
@@ -29,7 +30,7 @@ class NumpyEncoder(json.JSONEncoder):
         return super(NumpyEncoder, self).default(obj)
 
 class AudioMixer:
-    def __init__(self, keywords_dir, backgrounds_dir, output_dir, sample_rate=None):
+    def __init__(self, keywords_dir, backgrounds_dir, output_dir, sample_rate=SAMPLE_RATE):
         """
         Initialize AudioMixer.
         
@@ -39,9 +40,6 @@ class AudioMixer:
             output_dir: Directory to save mixed samples
             sample_rate: Target sample rate for audio files
         """
-        from config import SAMPLE_RATE
-        if sample_rate is None:
-            sample_rate = SAMPLE_RATE
         self.keywords_dir = keywords_dir
         self.backgrounds_dir = backgrounds_dir
         self.output_dir = output_dir
@@ -134,7 +132,7 @@ class AudioMixer:
         
         return samples
     
-    def mix_samples(self, keyword, noise_types=None, num_mixes=100, snr_range=(-5, 20)):
+    def mix_samples(self, keyword, noise_types=None, num_mixes=DEFAULT_NUM_MIXES, snr_range=DEFAULT_SNR_RANGE):
         """
         Mix keyword samples with background noise at various SNR levels.
         
@@ -233,9 +231,9 @@ def main():
     parser.add_argument('--keyword', type=str, required=True, help='Keyword to mix')
     parser.add_argument('--noise-types', type=str, nargs='+', choices=['propeller', 'jet', 'cockpit'], 
                         help='Types of background noise to mix with')
-    parser.add_argument('--num-mixes', type=int, default=100, help='Number of mixed samples to generate')
-    parser.add_argument('--min-snr', type=float, default=-5, help='Minimum SNR in dB')
-    parser.add_argument('--max-snr', type=float, default=20, help='Maximum SNR in dB')
+    parser.add_argument('--num-mixes', type=int, default=DEFAULT_NUM_MIXES, help=f'Number of mixed samples to generate (default: {DEFAULT_NUM_MIXES})')
+    parser.add_argument('--min-snr', type=float, default=DEFAULT_SNR_RANGE[0], help=f'Minimum SNR in dB (default: {DEFAULT_SNR_RANGE[0]})')
+    parser.add_argument('--max-snr', type=float, default=DEFAULT_SNR_RANGE[1], help=f'Maximum SNR in dB (default: {DEFAULT_SNR_RANGE[1]})')
     parser.add_argument('--keywords-dir', type=str, default='../data/keywords', help='Keywords directory')
     parser.add_argument('--backgrounds-dir', type=str, default='../data/backgrounds', help='Backgrounds directory')
     parser.add_argument('--output-dir', type=str, default='../data/mixed', help='Output directory')

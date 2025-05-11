@@ -1,26 +1,25 @@
 #!/bin/bash
 
 # Script to run the complete keyword detection workflow
-# Usage: ./run_workflow.sh <keyword>
+# Usage: ./run_workflow.sh [keyword]
 
-# Check if keyword is provided
-if [ -z "$1" ]; then
-  echo "Usage: ./run_workflow.sh <keyword>"
-  exit 1
-fi
+# Extract all defaults from config.py
+DEFAULT_KEYWORD=$(grep "DEFAULT_KEYWORD" config.py | cut -d '=' -f 2 | cut -d '#' -f 1 | tr -d ' ' | tr -d '"')
 
-KEYWORD=$1
-SAMPLES=50
-SAMPLES_TO_TEST=5
-NON_KEYWORDS_SAMPLES=50
-NON_KEYWORDS_SAMPLES_TO_TEST=5
-BG_SAMPLES=200
-NUM_MIXES=100
-MIN_SNR=-5
-MAX_SNR=20
-EPOCHS=50
-BATCH_SIZE=32
-# Extract the DEFAULT_DETECTION_THRESHOLD from config.py
+# Use provided keyword or default
+KEYWORD=${1:-$DEFAULT_KEYWORD}
+
+# Extract other defaults from config.py
+SAMPLES=$(grep "DEFAULT_KEYWORD_SAMPLES" config.py | cut -d '=' -f 2 | tr -d ' ')
+SAMPLES_TO_TEST=$(grep "DEFAULT_TEST_SAMPLES" config.py | cut -d '=' -f 2 | tr -d ' ')
+NON_KEYWORDS_SAMPLES=$(grep "DEFAULT_NON_KEYWORD_SAMPLES" config.py | cut -d '=' -f 2 | tr -d ' ')
+NON_KEYWORDS_SAMPLES_TO_TEST=$(grep "DEFAULT_TEST_SAMPLES" config.py | cut -d '=' -f 2 | tr -d ' ')
+BG_SAMPLES=$(grep "DEFAULT_BACKGROUND_SAMPLES" config.py | cut -d '=' -f 2 | tr -d ' ')
+NUM_MIXES=$(grep "DEFAULT_NUM_MIXES" config.py | cut -d '=' -f 2 | tr -d ' ')
+MIN_SNR=$(grep "DEFAULT_SNR_RANGE" config.py | cut -d '(' -f 2 | cut -d ',' -f 1 | tr -d ' ')
+MAX_SNR=$(grep "DEFAULT_SNR_RANGE" config.py | cut -d ',' -f 2 | cut -d ')' -f 1 | tr -d ' ')
+EPOCHS=$(grep "DEFAULT_EPOCHS" config.py | cut -d '=' -f 2 | tr -d ' ')
+BATCH_SIZE=$(grep "DEFAULT_BATCH_SIZE" config.py | cut -d '=' -f 2 | tr -d ' ')
 THRESHOLD=$(grep "DEFAULT_DETECTION_THRESHOLD" config.py | cut -d '=' -f 2 | tr -d ' ')
 
 echo "======================================================="

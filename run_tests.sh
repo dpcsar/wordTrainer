@@ -1,18 +1,17 @@
 #!/bin/bash
 
 # Script to run the test keyword detection
-# Usage: ./run_test.sh <keyword>
+# Usage: ./run_test.sh [keyword]
 
-# Check if keyword is provided
-if [ -z "$1" ]; then
-  echo "Usage: ./run_tests.sh <keyword>"
-  exit 1
-fi
+# Extract defaults from config.py
+DEFAULT_KEYWORD=$(grep "DEFAULT_KEYWORD" config.py | cut -d '=' -f 2 | cut -d '#' -f 1 | tr -d ' ' | tr -d '"')
 
-KEYWORD=$1
-SAMPLES_TO_TEST=5
-NON_KEYWORDS_SAMPLES_TO_TEST=5
-# Extract the DEFAULT_DETECTION_THRESHOLD from config.py
+# Use provided keyword or default
+KEYWORD=${1:-$DEFAULT_KEYWORD}
+
+# Extract other defaults from config.py
+SAMPLES_TO_TEST=$(grep "DEFAULT_TEST_SAMPLES" config.py | cut -d '=' -f 2 | tr -d ' ')
+NON_KEYWORDS_SAMPLES_TO_TEST=$(grep "DEFAULT_TEST_SAMPLES" config.py | cut -d '=' -f 2 | tr -d ' ')
 THRESHOLD=$(grep "DEFAULT_DETECTION_THRESHOLD" config.py | cut -d '=' -f 2 | tr -d ' ')
 
 echo "======================================================="

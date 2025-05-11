@@ -14,10 +14,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import configuration settings
 from config import (
-    DEFAULT_DETECTION_THRESHOLD, DEFAULT_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS,
-    DEFAULT_BACKGROUND_SAMPLES, DEFAULT_MIN_DURATION, DEFAULT_MAX_DURATION,
+    DEFAULT_DETECTION_THRESHOLD, DEFAULT_KEYWORD_SAMPLES, DEFAULT_NON_KEYWORD_SAMPLES,
+    DEFAULT_SILENCE_MS, DEFAULT_BACKGROUND_SAMPLES, DEFAULT_MIN_DURATION, DEFAULT_MAX_DURATION,
     DEFAULT_NUM_MIXES, DEFAULT_SNR_RANGE, DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE,
-    DEFAULT_LEARNING_RATE, DEFAULT_TEST_SAMPLES
+    DEFAULT_LEARNING_RATE, DEFAULT_TEST_SAMPLES, DEFAULT_KEYWORD
 )
 
 def load_module(module_path):
@@ -95,7 +95,7 @@ Examples:
     
     # Generate keywords command
     parser_gk = subparsers.add_parser('generate-keywords', help='Generate keyword samples using gTTS')
-    parser_gk.add_argument('--keyword', type=str, required=True, help='Keyword to generate samples for')
+    parser_gk.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to generate samples for (default: {DEFAULT_KEYWORD})')
     parser_gk.add_argument('--samples', type=int, default=DEFAULT_KEYWORD_SAMPLES, help=f'Number of samples to generate (default: {DEFAULT_KEYWORD_SAMPLES})')
     parser_gk.add_argument('--output-dir', type=str, help='Output directory')
     parser_gk.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, help=f'Silence to add at beginning and end (milliseconds) (default: {DEFAULT_SILENCE_MS})')
@@ -111,14 +111,14 @@ Examples:
     
     # Generate non-keywords command
     parser_nk = subparsers.add_parser('generate-non-keywords', help='Generate non-keyword samples for training')
-    parser_nk.add_argument('--samples', type=int, default=DEFAULT_KEYWORD_SAMPLES, help=f'Number of samples to generate (default: {DEFAULT_KEYWORD_SAMPLES})')
+    parser_nk.add_argument('--samples', type=int, default=DEFAULT_NON_KEYWORD_SAMPLES, help=f'Number of samples to generate (default: {DEFAULT_NON_KEYWORD_SAMPLES})')
     parser_nk.add_argument('--output-dir', type=str, help='Output directory')
     parser_nk.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, help=f'Silence to add at beginning and end (milliseconds) (default: {DEFAULT_SILENCE_MS})')
-    parser_nk.add_argument('--avoid-keyword', type=str, help='Keyword to avoid using as non-keyword')
+    parser_nk.add_argument('--avoid-keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to avoid using as non-keyword (default: {DEFAULT_KEYWORD})')
     
     # Mix audio samples command
     parser_ma = subparsers.add_parser('mix-audio', help='Mix keyword samples with background noise')
-    parser_ma.add_argument('--keyword', type=str, required=True, help='Keyword to mix')
+    parser_ma.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to mix (default: {DEFAULT_KEYWORD})')
     parser_ma.add_argument('--noise-types', type=str, nargs='+', choices=['propeller', 'jet', 'cockpit'], 
                         help='Types of background noise to mix with')
     parser_ma.add_argument('--num-mixes', type=int, default=DEFAULT_NUM_MIXES, help=f'Number of mixed samples to generate (default: {DEFAULT_NUM_MIXES})')
@@ -130,7 +130,7 @@ Examples:
     
     # Train model command
     parser_tm = subparsers.add_parser('train', help='Train keyword detection model')
-    parser_tm.add_argument('--keywords', type=str, nargs='+', required=True, help='Keywords to detect')
+    parser_tm.add_argument('--keywords', type=str, nargs='+', default=[DEFAULT_KEYWORD], help=f'Keywords to detect (default: {DEFAULT_KEYWORD})')
     parser_tm.add_argument('--data-dir', type=str, help='Directory containing audio data')
     parser_tm.add_argument('--model-dir', type=str, help='Directory to save trained models')
     parser_tm.add_argument('--epochs', type=int, default=DEFAULT_EPOCHS, help=f'Number of training epochs (default: {DEFAULT_EPOCHS})')
@@ -140,7 +140,7 @@ Examples:
     # Test model with gTTS samples command
     parser_tg = subparsers.add_parser('test-gtts', help='Test model using gTTS samples')
     parser_tg.add_argument('--model', type=str, help='Path to trained model (.h5 or .tflite) otherwise it will use the latest model')
-    parser_tg.add_argument('--keyword', type=str, help='Keyword to find the latest model for or to test with')
+    parser_tg.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to find the latest model for or to test with (default: {DEFAULT_KEYWORD})')
     parser_tg.add_argument('--file', type=str, help='Path to a single audio file to test')
     parser_tg.add_argument('--dir', type=str, help='Directory containing audio files to test')
     parser_tg.add_argument('--samples', type=int, default=DEFAULT_TEST_SAMPLES, help=f'Maximum number of samples to test in batch mode (default: {DEFAULT_TEST_SAMPLES})')
@@ -149,7 +149,7 @@ Examples:
     # Test model with non-keywords command
     parser_tnk = subparsers.add_parser('test-non-keywords', help='Test model using non-keyword samples')
     parser_tnk.add_argument('--model', type=str, help='Path to trained model (.h5 or .tflite)')
-    parser_tnk.add_argument('--keyword', type=str, help='Keyword to find the latest model for')
+    parser_tnk.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to find the latest model for (default: {DEFAULT_KEYWORD})')
     parser_tnk.add_argument('--file', type=str, help='Path to a single audio file to test')
     parser_tnk.add_argument('--dir', type=str, help='Directory containing audio files to test')
     parser_tnk.add_argument('--samples', type=int, default=DEFAULT_TEST_SAMPLES, help=f'Maximum number of samples to test in batch mode (default: {DEFAULT_TEST_SAMPLES})')
@@ -160,7 +160,7 @@ Examples:
     # Test model with microphone command
     parser_tm = subparsers.add_parser('test-mic', help='Test model using microphone input')
     parser_tm.add_argument('--model', type=str, help='Path to trained model (.h5 or .tflite)')
-    parser_tm.add_argument('--keyword', type=str, help='Keyword to find the latest model for or to test with')
+    parser_tm.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to find the latest model for or to test with (default: {DEFAULT_KEYWORD})')
     parser_tm.add_argument('--threshold', type=float, default=DEFAULT_DETECTION_THRESHOLD, 
                         help=f'Detection threshold (default: {DEFAULT_DETECTION_THRESHOLD} from config)')
     parser_tm.add_argument('--device', type=int, help='Audio device index')
