@@ -46,7 +46,7 @@ wordTrainer/
 │   ├── test_audio_utils.py           # Test audio utility functions
 │   ├── test_model_gtts.py            # Test model using gTTS samples
 │   ├── test_model_mic.py             # Test model using microphone input
-│   └── test_non_keywords.py          # Test non-keyword generation
+│   └── test_model_non_keywords.py    # Test non-keyword generation
 │
 ├── models/            # Trained models
 │   ├── model_metadata.json           # Metadata for trained models

@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 """
-Test keyword detection model using gTTS samples.
+Test keyword detection model using non-keywords samples.
 """
 
 import os
@@ -15,14 +16,14 @@ import time
 import glob
 
 # Add parent directory to path for imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import MODELS_DIR, KEYWORDS_DIR
 from src.audio_utils import load_audio, extract_features, plot_waveform
 
-class KeywordDetectionTester:
+class NonKeywordTester:
     def __init__(self, model_path, keywords_dir, sample_rate=16000):
         """
-        Initialize KeywordDetectionTester.
+        Initialize NonKeywordTester.
         
         Args:
             model_path: Path to trained model (.h5 or .tflite)
@@ -281,54 +282,73 @@ class KeywordDetectionTester:
             except Exception as e:
                 print(f"Error testing {file_path}: {str(e)}")
         
-        # Calculate accuracy for each keyword
-        keyword_results = {}
+        # Calculate accuracy - for non-keywords, we want to see them classified as 'negative'
+        # A correct classification for a non-keyword is predicted_class = 0 (negative)
+        correct = 0
+        total = len(results)
         
         for result in results:
-            file = result['file']
-            predicted = result['predicted_label']
-            
-            # Try to extract true label from filename by looking in the keywords directory
-            true_label = None
-            # First check if the keywords are in the self.keywords_dir
-            for keyword in self.keywords:
-                keyword_dir = os.path.join(self.keywords_dir, keyword)
-                if os.path.exists(keyword_dir) and keyword in file.lower():
-                    true_label = keyword
-                    break
-            
-            # If not found, fallback to checking the file name
-            if true_label is None:
-                for keyword in self.keywords:
-                    if keyword in file.lower():
-                        true_label = keyword
-                        break
-            
-            if true_label is None:
-                true_label = 'negative'  # Assume negative if no keyword found
-            
-            # Update keyword results
-            if true_label not in keyword_results:
-                keyword_results[true_label] = {'correct': 0, 'total': 0}
-            
-            keyword_results[true_label]['total'] += 1
-            
-            if predicted == true_label:
-                keyword_results[true_label]['correct'] += 1
+            if result['predicted_class'] == 0:  # 0 = negative class
+                correct += 1
         
-        # Print results
-        print("\nTest Results Summary:")
-        for keyword, counts in keyword_results.items():
-            accuracy = counts['correct'] / counts['total'] * 100 if counts['total'] > 0 else 0
-            print(f"{keyword}: {counts['correct']}/{counts['total']} correct ({accuracy:.2f}%)")
+        accuracy = correct / total * 100 if total > 0 else 0
+        print(f"\nNon-Keyword Test Results:")
+        print(f"Correctly classified as negative: {correct}/{total} ({accuracy:.2f}%)")
         
-        total_correct = sum(kw['correct'] for kw in keyword_results.values())
-        total_samples = sum(kw['total'] for kw in keyword_results.values())
-        total_accuracy = total_correct / total_samples * 100 if total_samples > 0 else 0
+        # Print detailed results
+        misclassified = []
+        for result in results:
+            if result['predicted_class'] != 0:
+                misclassified.append((result['file'], result['predicted_label'], result['confidence']))
         
-        print(f"Overall: {total_correct}/{total_samples} correct ({total_accuracy:.2f}%)")
+        if misclassified:
+            print("\nMisclassified non-keywords:")
+            for file, label, conf in misclassified:
+                print(f"  {file}: falsely detected as '{label}' with confidence {conf:.4f}")
         
         return results
+
+def test_model_non_keywords_exist():
+    """Test if non-keywords directory and metadata exist."""
+    
+    # Path to non-keywords directory
+    non_keywords_dir = os.path.join(KEYWORDS_DIR, 'non_keywords')
+    
+    # Check if directory exists
+    if not os.path.exists(non_keywords_dir):
+        print("❌ Non-keywords directory not found:", non_keywords_dir)
+        return False
+    
+    # Check if metadata file exists
+    metadata_path = os.path.join(KEYWORDS_DIR, 'metadata.json')
+    if not os.path.exists(metadata_path):
+        print("❌ Metadata file not found:", metadata_path)
+        return False
+    
+    # Check if metadata contains non-keywords
+    with open(metadata_path, 'r') as f:
+        metadata = json.load(f)
+    
+    if 'non_keywords' not in metadata:
+        print("❌ Non-keywords not found in metadata")
+        return False
+    
+    if 'samples' not in metadata['non_keywords'] or not metadata['non_keywords']['samples']:
+        print("❌ No non-keyword samples found in metadata")
+        return False
+    
+    print(f"✅ Found {metadata['non_keywords']['count']} non-keyword samples")
+    
+    # Check for sample files
+    sample_count = 0
+    for sample in metadata['non_keywords']['samples']:
+        file_path = os.path.join(non_keywords_dir, sample['file'])
+        if os.path.exists(file_path):
+            sample_count += 1
+    
+    print(f"✅ {sample_count} non-keyword sample files exist out of {len(metadata['non_keywords']['samples'])} in metadata")
+    
+    return sample_count > 0
 
 def find_latest_model_by_keyword(keyword=None, models_dir=MODELS_DIR):
     """
@@ -399,7 +419,7 @@ def find_latest_model_by_keyword(keyword=None, models_dir=MODELS_DIR):
     return None
 
 def main():
-    parser = argparse.ArgumentParser(description='Test keyword detection model using gTTS samples')
+    parser = argparse.ArgumentParser(description='Test keyword detection model using non-keywords samples')
     parser.add_argument('--model', type=str,
                         help='Path to trained model (.h5 or .tflite)')
     parser.add_argument('--keyword', type=str,
@@ -414,7 +434,19 @@ def main():
                         help='Directory containing keyword samples')
     parser.add_argument('--list-models', action='store_true',
                         help='List available models and exit')
+    parser.add_argument('--check-exist', action='store_true',
+                        help='Only check if non-keywords exist and exit')
     args = parser.parse_args()
+    
+    # Just check if non-keywords exist if --check-exist is specified
+    if args.check_exist:
+        print("Checking for non-keywords setup...")
+        if test_model_non_keywords_exist():
+            print("✅ Non-keywords setup passed!")
+            sys.exit(0)
+        else:
+            print("❌ Non-keywords setup failed!")
+            sys.exit(1)
     
     # Convert relative paths to absolute paths if needed
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -460,7 +492,7 @@ def main():
         args.keywords_dir = os.path.abspath(os.path.join(script_dir, args.keywords_dir))
     
     # Create the tester with the model
-    tester = KeywordDetectionTester(model_path, args.keywords_dir)
+    tester = NonKeywordTester(model_path, args.keywords_dir)
     
     if args.file:
         # Test single file
@@ -471,22 +503,13 @@ def main():
         tester.batch_test(args.dir, args.samples)
     
     else:
-        # If no file or dir specified, try to use keyword directory
-        # Use provided keyword or get first keyword from model metadata
-        keyword = args.keyword
-        if not keyword and hasattr(tester, 'keywords') and tester.keywords:
-            keyword = tester.keywords[0]
-            print(f"Using keyword from model metadata: '{keyword}'")
-        
-        if keyword:
-            keyword_dir = os.path.join(args.keywords_dir, keyword)
-            if os.path.exists(keyword_dir):
-                print(f"Using keyword directory: {keyword_dir}")
-                tester.batch_test(keyword_dir, args.samples)
-            else:
-                print(f"Error: Keyword directory not found: {keyword_dir}")
+        # If no file or dir specified, use the non-keywords directory
+        non_keywords_dir = os.path.join(args.keywords_dir, 'non_keywords')
+        if os.path.exists(non_keywords_dir):
+            print(f"Using non-keywords directory: {non_keywords_dir}")
+            tester.batch_test(non_keywords_dir, args.samples)
         else:
-            print("Error: Either --file, --dir must be specified, or model must have keywords defined")
+            print(f"Error: Non-keywords directory not found: {non_keywords_dir}")
 
 if __name__ == "__main__":
     main()
