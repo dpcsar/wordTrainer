@@ -19,29 +19,43 @@ This project provides tools to:
 ```
 wordTrainer/
 ├── src/               # Python source code
-│   ├── generate_keywords.py         # Generate keyword samples using gTTS
-│   ├── generate_non_keywords.py     # Generate non-keyword samples for negative training
-│   ├── generate_background_noise.py # Generate cockpit background noise
-│   ├── mix_audio_samples.py         # Mix keywords with noise at different SNRs
-│   ├── train_model.py               # Train keyword detection model
+│   ├── audio_utils.py                # Audio processing utility functions
+│   ├── generate_keywords.py          # Generate keyword samples using gTTS
+│   ├── generate_non_keywords.py      # Generate non-keyword samples for negative training
+│   ├── generate_background_noise.py  # Generate cockpit background noise
+│   ├── mix_audio_samples.py          # Mix keywords with noise at different SNRs
+│   ├── prepare_for_android.py        # Export and prepare models for Android
+│   └── train_model.py                # Train keyword detection model
 │
 ├── data/              # Audio data
 │   ├── keywords/      # Keyword samples
+│   │   ├── metadata.json             # Metadata for keyword samples
+│   │   ├── activate/                 # Specific keyword samples
+│   │   └── non_keywords/             # Non-keyword samples
+│   │
 │   ├── backgrounds/   # Background noise samples
+│   │   ├── metadata.json             # Metadata for background noise
+│   │   ├── cockpit/                  # Cockpit ambient noise
+│   │   ├── jet/                      # Jet aircraft noise
+│   │   └── propeller/                # Propeller aircraft noise
+│   │
 │   └── mixed/         # Mixed audio for training
+│       └── metadata.json             # Metadata for mixed samples
 │
 ├── tests/             # Test scripts
-│   ├── test_audio_utils.py          # Test audio utility functions
-│   ├── test_model_gtts.py           # Test model using gTTS samples
-│   ├── test_model_mic.py            # Test model using microphone input
-│   └── test_non_keywords.py         # Test non-keyword generation
+│   ├── test_audio_utils.py           # Test audio utility functions
+│   ├── test_model_gtts.py            # Test model using gTTS samples
+│   ├── test_model_mic.py             # Test model using microphone input
+│   └── test_non_keywords.py          # Test non-keyword generation
 │
 ├── models/            # Trained models
-│   └── plots/         # Training plots and visualizations
+│   ├── model_metadata.json           # Metadata for trained models
+│   └── plots/                        # Training plots and visualizations
 │
-├── .vscode/           # VSCode configuration
-│   └── launch.json    # Launch configurations
-│
+├── config.py          # Configuration settings
+├── main.py            # Main entry point
+├── run_tests.sh       # Script to run all tests
+├── run_workflow.sh    # Script to run complete training workflow
 ├── requirements.txt   # Python dependencies
 └── README.md          # Project documentation
 ```
@@ -53,6 +67,7 @@ wordTrainer/
 - Python 3.8+ with pip
 - VS Code with Python extension
 - Internet connection (for gTTS)
+- Audio output and input devices for testing
 
 ### Installation
 
@@ -161,7 +176,7 @@ Options:
 Test the trained model using pre-recorded gTTS samples:
 
 ```bash
-python src/test_model_gtts.py --model "models/keyword_detection_activate_20250509_120000.tflite" --dir "data/keywords/activate"
+python tests/test_model_gtts.py --model "models/keyword_detection_<your_model_xxx>.tflite" --dir "data/keywords/activate"
 ```
 
 Options:
@@ -175,7 +190,7 @@ Options:
 Test the trained model using real-time microphone input:
 
 ```bash
-python src/test_model_mic.py --model "models/keyword_detection_activate_20250509_120000.tflite" --threshold 0.7
+python tests/test_model_mic.py --model "models/keyword_detection_<your_model_xxx>.tflite" --threshold 0.7
 ```
 
 Options:
@@ -186,12 +201,47 @@ Options:
 
 ## Integration with Android
 
-The trained TFLite models can be integrated into Android applications. Key steps:
+The trained TFLite models can be integrated into Android applications. Use the prepare_for_android.py script to export your model:
 
-1. Copy the .tflite model file to your Android project's assets directory
+```bash
+python src/prepare_for_android.py --model "models/keyword_detection_<your_model_xxx>.h5" --output "models/android_ready" --optimize
+```
+
+Options:
+- `--model`: Path to the trained model (.h5)
+- `--output`: Output directory for Android-ready files
+- `--optimize`: Apply additional optimization for mobile deployment (optional)
+
+Key integration steps:
+1. Copy the exported .tflite model file to your Android project's assets directory
 2. Use the TensorFlow Lite Android library to load and run the model
 3. Process audio from the device microphone in real-time
 4. Apply the same feature extraction as used during training
+
+## Complete Workflow
+
+You can run the entire workflow using the provided shell script:
+
+```bash
+./run_workflow.sh --keyword "activate" --samples 50 --train-epochs 50
+```
+
+This script will:
+1. Generate keyword samples
+2. Generate background noise
+3. Generate non-keywords
+4. Mix samples with noise
+5. Train the model
+6. Test the model
+7. Prepare for Android deployment
+
+## Testing
+
+Run the test suite to verify functionality:
+
+```bash
+./run_tests.sh
+```
 
 ## License
 
