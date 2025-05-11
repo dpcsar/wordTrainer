@@ -15,24 +15,25 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import MODELS_DIR
+from config import MODELS_DIR, DEFAULT_DETECTION_THRESHOLD
 from src.audio_utils import extract_features
 
 import sounddevice as sd
 import queue
 
 class MicrophoneDetector:
-    def __init__(self, model_path, threshold=0.5, sample_rate=16000):
+    def __init__(self, model_path, threshold=None, sample_rate=16000):
         """
         Initialize MicrophoneDetector.
         
         Args:
             model_path: Path to trained model (.h5 or .tflite)
-            threshold: Detection threshold
+            threshold: Detection threshold (None to use default from config)
             sample_rate: Audio sample rate
         """
         self.model_path = model_path
-        self.threshold = threshold
+        # Use threshold from config if none provided
+        self.threshold = threshold if threshold is not None else DEFAULT_DETECTION_THRESHOLD
         self.sample_rate = sample_rate
         
         # Audio settings
@@ -420,8 +421,8 @@ def main():
                         help='Path to trained model (.h5 or .tflite)')
     parser.add_argument('--keyword', type=str,
                         help='Keyword to find the latest model for (e.g., "activate")')
-    parser.add_argument('--threshold', type=float, default=0.5, 
-                        help='Detection threshold')
+    parser.add_argument('--threshold', type=float, default=DEFAULT_DETECTION_THRESHOLD, 
+                        help='Detection threshold (default: from config)')
     parser.add_argument('--device', type=int, 
                         help='Audio device index')
     parser.add_argument('--list-models', action='store_true',

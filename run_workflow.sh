@@ -20,7 +20,8 @@ MIN_SNR=-5
 MAX_SNR=20
 EPOCHS=50
 BATCH_SIZE=32
-THRESHOLD=0.6
+# Extract the DEFAULT_DETECTION_THRESHOLD from config.py
+THRESHOLD=$(grep "DEFAULT_DETECTION_THRESHOLD" config.py | cut -d '=' -f 2 | tr -d ' ')
 
 echo "======================================================="
 echo "Starting keyword detection workflow for keyword: $KEYWORD"

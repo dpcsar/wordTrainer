@@ -12,6 +12,9 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Import configuration settings
+from config import DEFAULT_DETECTION_THRESHOLD
+
 def load_module(module_path):
     """
     Dynamically load a Python module from a file path.
@@ -153,7 +156,8 @@ Examples:
     parser_tm = subparsers.add_parser('test-mic', help='Test model using microphone input')
     parser_tm.add_argument('--model', type=str, help='Path to trained model (.h5 or .tflite)')
     parser_tm.add_argument('--keyword', type=str, help='Keyword to find the latest model for or to test with')
-    parser_tm.add_argument('--threshold', type=float, default=0.5, help='Detection threshold')
+    parser_tm.add_argument('--threshold', type=float, default=DEFAULT_DETECTION_THRESHOLD, 
+                        help=f'Detection threshold (default: {DEFAULT_DETECTION_THRESHOLD} from config)')
     parser_tm.add_argument('--device', type=int, help='Audio device index')
     parser_tm.add_argument('--no-viz', action='store_true', help='Disable visualization')
    

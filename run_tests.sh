@@ -12,7 +12,8 @@ fi
 KEYWORD=$1
 SAMPLES_TO_TEST=5
 NON_KEYWORDS_SAMPLES_TO_TEST=5
-THRESHOLD=0.6
+# Extract the DEFAULT_DETECTION_THRESHOLD from config.py
+THRESHOLD=$(grep "DEFAULT_DETECTION_THRESHOLD" config.py | cut -d '=' -f 2 | tr -d ' ')
 
 echo "======================================================="
 echo "Starting keyword detection tests for keyword: $KEYWORD"
