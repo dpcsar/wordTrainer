@@ -57,8 +57,6 @@ class KeywordGenerator:
             num_samples: Number of samples to generate (default: from config.DEFAULT_KEYWORD_SAMPLES)
             silence_ms: Silence to add at beginning and end in milliseconds (default: from config.DEFAULT_SILENCE_MS)
         """
-        print(f"Generating {num_samples} samples for keyword: '{keyword}'")
-        
         # Create keyword directory if it doesn't exist
         keyword_dir = os.path.join(self.output_dir, keyword)
         os.makedirs(keyword_dir, exist_ok=True)
@@ -70,8 +68,18 @@ class KeywordGenerator:
                 'count': 0
             }
         
-        # Generate samples
-        for i in tqdm(range(num_samples)):
+        # Check if we already have enough samples for this keyword
+        existing_count = self.metadata[keyword]['count']
+        samples_needed = max(0, num_samples - existing_count)
+        
+        if samples_needed <= 0:
+            print(f"Already have {existing_count} samples for keyword '{keyword}', no additional samples needed.")
+            return
+        
+        print(f"Generating {samples_needed} additional samples for keyword: '{keyword}' (already have {existing_count})")
+        
+        # Generate only the needed samples
+        for i in tqdm(range(samples_needed)):
             # Randomly select accent, age, gender
             accent_info = random.choice(ACCENTS)
             age_group = random.choice(AGE_GROUPS)
@@ -165,13 +173,13 @@ class KeywordGenerator:
         
         # Save final metadata
         self._save_metadata()
-        print(f"Generated {num_samples} samples for keyword '{keyword}'")
+        print(f"Generated {samples_needed} additional samples for keyword '{keyword}', total now: {self.metadata[keyword]['count']}")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate keyword speech samples using gTTS')
     parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to generate samples for (default: {DEFAULT_KEYWORD})')
     parser.add_argument('--samples', type=int, default=DEFAULT_KEYWORD_SAMPLES, 
-                        help=f'Number of samples to generate (default: {DEFAULT_KEYWORD_SAMPLES})')
+                        help=f'Total number of samples desired (will only generate what is needed to reach this number) (default: {DEFAULT_KEYWORD_SAMPLES})')
     parser.add_argument('--output-dir', type=str, default='../data/keywords', help='Output directory')
     parser.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, 
                         help=f'Silence to add at beginning and end in milliseconds (default: {DEFAULT_SILENCE_MS})')
