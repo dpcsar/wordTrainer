@@ -39,16 +39,17 @@ DEFAULT_DETECTION_THRESHOLD = 0.5
 DEFAULT_KEYWORD = "activate"  # Default keyword for model training and testing
 
 # Audio generation settings
-DEFAULT_KEYWORD_SAMPLES = 50
+DEFAULT_KEYWORD_SAMPLES = 10
 DEFAULT_NON_KEYWORD_SAMPLES = int(DEFAULT_KEYWORD_SAMPLES * DEFAULT_NEGATIVE_SAMPLES_RATIO)  # Based on negative samples ratio
 DEFAULT_SILENCE_MS = 500
-DEFAULT_BACKGROUND_SAMPLES = 200
+DEFAULT_BACKGROUND_SAMPLES = 20
 DEFAULT_MIN_DURATION = 3.0
 DEFAULT_MAX_DURATION = 10.0
 DEFAULT_NUM_MIXES = 100
 
 # Testing settings
 DEFAULT_TEST_SAMPLES = 10
+DEFAULT_SHOW_PLOTS = True
 DEFAULT_AUDIO_DURATION = 2  # seconds
 DEFAULT_BUFFER_DURATION = 5  # seconds
 
@@ -76,6 +77,9 @@ NOISE_TYPES = ['propeller', 'jet', 'cockpit']
 
 # Default SNR range for mixing
 DEFAULT_SNR_RANGE = (-5, 20)
+
+# Non-keywords folder name for organization
+NON_KEYWORDS_DIR = 'non_keywords'
 
 # List of common words to use as non-keywords
 # These are selected to be distinct from typical wake words 

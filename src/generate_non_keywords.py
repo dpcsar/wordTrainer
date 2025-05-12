@@ -18,7 +18,9 @@ from tqdm import tqdm
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ACCENTS, AGE_GROUPS, NON_KEYWORDS, SAMPLE_RATE, DEFAULT_NON_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS, KEYWORDS_DIR, DEFAULT_KEYWORD
+from config import (ACCENTS, AGE_GROUPS, NON_KEYWORDS, SAMPLE_RATE,
+                    DEFAULT_NON_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS, KEYWORDS_DIR,
+                    DEFAULT_KEYWORD)
 
 class NonKeywordGenerator:
     def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
@@ -58,8 +60,6 @@ class NonKeywordGenerator:
             silence_ms: Silence to add at beginning and end (milliseconds) (default: DEFAULT_SILENCE_MS)
             keyword_to_avoid: Keyword to avoid using as non-keyword samples (default: DEFAULT_KEYWORD)
         """
-        print(f"Generating {num_samples} non-keyword samples")
-        
         # Create non-keywords directory if it doesn't exist
         non_keywords_dir = os.path.join(self.output_dir, "non_keywords")
         os.makedirs(non_keywords_dir, exist_ok=True)
@@ -71,13 +71,23 @@ class NonKeywordGenerator:
                 'count': 0
             }
         
+        # Check if we already have enough non-keyword samples
+        existing_count = self.metadata["non_keywords"]['count']
+        samples_needed = max(0, num_samples - existing_count)
+        
+        if samples_needed <= 0:
+            print(f"Already have {existing_count} non-keyword samples, no additional samples needed.")
+            return
+        
+        print(f"Generating {samples_needed} additional non-keyword samples (already have {existing_count})")
+        
         # Filter out the keyword to avoid if provided
         available_words = [word for word in NON_KEYWORDS if word != keyword_to_avoid]
         if len(available_words) == 0:
             available_words = NON_KEYWORDS
         
-        # Generate samples
-        for i in tqdm(range(num_samples)):
+        # Generate only the needed samples
+        for i in tqdm(range(samples_needed)):
             # Select random non-keyword word
             non_keyword = random.choice(available_words)
             
@@ -174,7 +184,7 @@ class NonKeywordGenerator:
         
         # Save final metadata
         self._save_metadata()
-        print(f"Generated {num_samples} non-keyword samples")
+        print(f"Generated {samples_needed} non-keyword samples")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate non-keyword speech samples using gTTS')
@@ -186,11 +196,6 @@ def main():
     parser.add_argument('--avoid-keyword', type=str, default=DEFAULT_KEYWORD,
                         help=f'Keyword to avoid using as non-keyword (default: {DEFAULT_KEYWORD})')
     args = parser.parse_args()
-    
-    # Convert relative path to absolute path if needed
-    if not os.path.isabs(args.output_dir):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        args.output_dir = os.path.abspath(os.path.join(script_dir, args.output_dir))
     
     generator = NonKeywordGenerator(args.output_dir)
     generator.generate_non_keyword_samples(args.samples, args.silence, args.avoid_keyword)

@@ -9,7 +9,7 @@ import numpy as np
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from audio_utils import (
+from src.audio_utils import (
     calculate_snr,
     adjust_noise_for_snr,
     mix_audio,

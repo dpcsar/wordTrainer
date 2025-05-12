@@ -35,10 +35,8 @@ ENV/
 # Audio files
 *.wav
 *.mp3
-data/keywords/*
-data/backgrounds/*
-data/mixed/*
-models/*
+data/
+models/
 
 # Tensorflow/models
 *.h5

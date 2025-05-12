@@ -15,7 +15,8 @@ import random
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import from config and audio_utils
-from config import SAMPLE_RATE, DEFAULT_NUM_MIXES, DEFAULT_SNR_RANGE
+from config import (SAMPLE_RATE, DEFAULT_NUM_MIXES, DEFAULT_SNR_RANGE, DEFAULT_KEYWORD,
+                    NOISE_TYPES, KEYWORDS_DIR, BACKGROUNDS_DIR, MIXED_DIR, NON_KEYWORDS_DIR)
 from src.audio_utils import load_audio, save_audio, mix_audio, calculate_snr
 
 # Custom JSON encoder to handle NumPy types
@@ -104,6 +105,29 @@ class AudioMixer:
         
         return samples
     
+    def get_non_keyword_samples(self):
+        """
+        Get list of non-keyword samples.
+        
+        Returns:
+            List of non-keyword sample paths
+        """
+        samples = []
+        
+        if NON_KEYWORDS_DIR not in self.keywords_metadata:
+            return samples
+        
+        for sample in self.keywords_metadata[NON_KEYWORDS_DIR]["samples"]:
+            file_path = os.path.join(self.keywords_dir, NON_KEYWORDS_DIR, sample['file'])
+            if os.path.exists(file_path):
+                samples.append({
+                    'path': file_path,
+                    'metadata': sample,
+                    'non_keyword': sample.get('non_keyword')
+                })
+        
+        return samples
+
     def get_background_samples(self, noise_type=None):
         """
         Get list of background noise samples.
@@ -116,7 +140,7 @@ class AudioMixer:
         """
         samples = []
         
-        noise_types = [noise_type] if noise_type else ['propeller', 'jet', 'cockpit']
+        noise_types = [noise_type] if noise_type else NOISE_TYPES
         
         for noise_type in noise_types:
             if noise_type not in self.backgrounds_metadata:
@@ -132,21 +156,32 @@ class AudioMixer:
         
         return samples
     
-    def mix_samples(self, keyword, noise_types=None, num_mixes=DEFAULT_NUM_MIXES, snr_range=DEFAULT_SNR_RANGE):
+    def mix_samples(self, keyword=None, noise_types=None, num_mixes=DEFAULT_NUM_MIXES, snr_range=DEFAULT_SNR_RANGE):
         """
-        Mix keyword samples with background noise at various SNR levels.
+        Mix keyword and non-keyword samples with background noise at various SNR levels.
         
         Args:
-            keyword: Keyword to mix
+            keyword: Keyword to mix (required)
             noise_types: Types of background noise to mix with ('propeller', 'jet', 'cockpit', or None for all)
-            num_mixes: Number of mixed samples to generate
+            num_mixes: Number of mixed samples to generate per keyword/non-keyword
             snr_range: Range of SNR values in dB
         """
-        # Get keyword samples
-        keyword_samples = self.get_keyword_samples(keyword)
-        if not keyword_samples:
-            print(f"No samples found for keyword '{keyword}'")
+        # Handle keyword samples
+        keyword_samples = []
+        if keyword:
+            keyword_samples = self.get_keyword_samples(keyword)
+            if not keyword_samples:
+                print(f"No samples found for keyword '{keyword}'")
+                return
+        
+        # Handle non-keyword samples (always required now)
+        non_keyword_samples = []
+        non_keyword_samples = self.get_non_keyword_samples()
+        if not non_keyword_samples:
+            print("No non-keyword samples found")
             return
+                
+        print(f"Found {len(keyword_samples)} keyword samples and {len(non_keyword_samples)} non-keyword samples")
         
         # Get background samples
         background_samples = self.get_background_samples(
@@ -155,24 +190,54 @@ class AudioMixer:
         if not background_samples:
             print("No background samples found")
             return
+            
+        print(f"Found {len(background_samples)} background samples")
         
-        print(f"Mixing {keyword} with background noise, creating {num_mixes} samples")
+        # Always process keyword samples
+        self._mix_audio_category(keyword_samples, background_samples, keyword, num_mixes, snr_range)
+            
+        # Always process non-keyword samples
+        self._mix_audio_category(non_keyword_samples, background_samples, NON_KEYWORDS_DIR, num_mixes, snr_range, is_non_keyword=True)
+            
+        # Save final metadata
+        self._save_metadata()
+    
+    def _mix_audio_category(self, samples, background_samples, category, num_mixes, snr_range, is_non_keyword=False):
+        """
+        Mix samples of a specific category with background noise.
         
-        # Create keyword directory in output
-        keyword_dir = os.path.join(self.output_dir, keyword)
-        os.makedirs(keyword_dir, exist_ok=True)
+        Args:
+            samples: List of samples to mix
+            background_samples: List of background noise samples
+            category: Category name ('keyword' or non-keywords directory name)
+            num_mixes: Number of mixed samples to generate
+            snr_range: Range of SNR values in dB
+            is_non_keyword: Whether we're processing non-keywords
+        """
+        print(f"Mixing {category} with background noise, creating {num_mixes} samples")
         
-        # Initialize keyword metadata if not exists
-        if keyword not in self.metadata:
-            self.metadata[keyword] = {
+        # Create output directory if it doesn't exist (may be a relative path)
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Create category directory in output
+        category_dir = os.path.join(self.output_dir, category)
+        os.makedirs(category_dir, exist_ok=True)
+        
+        # Print path for debugging
+        print(f"Creating mixed samples in directory: {category_dir}")
+        
+        # Initialize category metadata if not exists
+        if category not in self.metadata:
+            self.metadata[category] = {
                 'samples': [],
                 'count': 0
             }
         
         # Mix samples
         for i in tqdm(range(num_mixes)):
-            # Select random keyword sample
-            keyword_sample = random.choice(keyword_samples)
+            # Select random sample
+            sample = random.choice(samples)
             
             # Select random background sample and type
             background_sample = random.choice(background_samples)
@@ -187,18 +252,24 @@ class AudioMixer:
             noise_type = background_sample['metadata']['type']
             snr_str = f"{snr:.1f}".replace('-', 'neg').replace('.', 'p')
             
-            filename = f"{keyword}_{noise_type}_{snr_str}db_{sample_id}.wav"
-            file_path = os.path.join(keyword_dir, filename)
+            # Different filename format for keywords vs non-keywords
+            if is_non_keyword:
+                non_keyword_value = sample.get('non_keyword', sample['metadata'].get('non_keyword', 'unknown'))
+                filename = f"non_keyword_{non_keyword_value}_{noise_type}_{snr_str}db_{sample_id}.wav"
+            else:
+                filename = f"{category}_{noise_type}_{snr_str}db_{sample_id}.wav"
+                
+            file_path = os.path.join(category_dir, filename)
             
             # Load audio files
-            keyword_audio, _ = load_audio(keyword_sample['path'], target_sr=self.sample_rate)
+            sample_audio, _ = load_audio(sample['path'], target_sr=self.sample_rate)
             background_audio, _ = load_audio(background_sample['path'], target_sr=self.sample_rate)
             
             # Mix audio
-            mixed_audio = mix_audio(keyword_audio, background_audio, snr)
+            mixed_audio = mix_audio(sample_audio, background_audio, snr)
             
             # Calculate actual SNR (for validation)
-            actual_snr = calculate_snr(keyword_audio, mixed_audio - keyword_audio)
+            actual_snr = calculate_snr(sample_audio, mixed_audio - sample_audio)
             
             # Save mixed audio
             save_audio(mixed_audio, file_path, sr=self.sample_rate)
@@ -207,49 +278,42 @@ class AudioMixer:
             sample_metadata = {
                 'id': sample_id,
                 'file': filename,
-                'keyword': keyword,
                 'noise_type': noise_type,
                 'target_snr_db': snr,
                 'actual_snr_db': actual_snr,
-                'keyword_sample': keyword_sample['metadata']['id'],
+                'sample_id': sample['metadata']['id'],
                 'background_sample': background_sample['metadata']['id'],
             }
             
-            self.metadata[keyword]['samples'].append(sample_metadata)
-            self.metadata[keyword]['count'] += 1
+            # Add keyword or non_keyword specific fields
+            if is_non_keyword:
+                sample_metadata['non_keyword'] = sample.get('non_keyword')
+            else:
+                sample_metadata['keyword'] = category
+            
+            self.metadata[category]['samples'].append(sample_metadata)
+            self.metadata[category]['count'] += 1
             
             # Save metadata every 10 samples
             if i % 10 == 0:
                 self._save_metadata()
         
-        # Save final metadata
-        self._save_metadata()
-        print(f"Mixed {num_mixes} samples for keyword '{keyword}'")
+        print(f"Mixed {num_mixes} samples for {category}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Mix keyword samples with background noise')
-    parser.add_argument('--keyword', type=str, required=True, help='Keyword to mix')
-    parser.add_argument('--noise-types', type=str, nargs='+', choices=['propeller', 'jet', 'cockpit'], 
-                        help='Types of background noise to mix with')
+    parser = argparse.ArgumentParser(description='Mix keyword and non-keyword samples with background noise')
+    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to mix (default: {DEFAULT_KEYWORD})')
+    parser.add_argument('--noise-types', type=str, nargs='+', choices=NOISE_TYPES, 
+                        help=f'Types of background noise to mix with (default: all)')
     parser.add_argument('--num-mixes', type=int, default=DEFAULT_NUM_MIXES, help=f'Number of mixed samples to generate (default: {DEFAULT_NUM_MIXES})')
     parser.add_argument('--min-snr', type=float, default=DEFAULT_SNR_RANGE[0], help=f'Minimum SNR in dB (default: {DEFAULT_SNR_RANGE[0]})')
     parser.add_argument('--max-snr', type=float, default=DEFAULT_SNR_RANGE[1], help=f'Maximum SNR in dB (default: {DEFAULT_SNR_RANGE[1]})')
-    parser.add_argument('--keywords-dir', type=str, default='../data/keywords', help='Keywords directory')
-    parser.add_argument('--backgrounds-dir', type=str, default='../data/backgrounds', help='Backgrounds directory')
-    parser.add_argument('--output-dir', type=str, default='../data/mixed', help='Output directory')
+    
+    # Use directory paths from config for better consistency
+    parser.add_argument('--keywords-dir', type=str, default=KEYWORDS_DIR, help='Keywords directory')
+    parser.add_argument('--backgrounds-dir', type=str, default=BACKGROUNDS_DIR, help='Backgrounds directory')
+    parser.add_argument('--output-dir', type=str, default=MIXED_DIR, help='Output directory')
     args = parser.parse_args()
-    
-    # Convert relative paths to absolute paths if needed
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    if not os.path.isabs(args.keywords_dir):
-        args.keywords_dir = os.path.abspath(os.path.join(script_dir, args.keywords_dir))
-    
-    if not os.path.isabs(args.backgrounds_dir):
-        args.backgrounds_dir = os.path.abspath(os.path.join(script_dir, args.backgrounds_dir))
-    
-    if not os.path.isabs(args.output_dir):
-        args.output_dir = os.path.abspath(os.path.join(script_dir, args.output_dir))
     
     mixer = AudioMixer(args.keywords_dir, args.backgrounds_dir, args.output_dir)
     mixer.mix_samples(

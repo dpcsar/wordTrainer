@@ -20,7 +20,17 @@
             "args": [
                 "generate-keywords",
                 "--keyword", "activate",
-                "--samples", "10"
+            ]
+        },
+        {
+            "name": "Generate Non-Keywords",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "generate-non-keywords",
             ]
         },
         {
@@ -33,20 +43,6 @@
             "args": [
                 "generate-noise",
                 "--type", "all",
-                "--samples", "10"
-            ]
-        },
-        {
-            "name": "Generate Non-Keywords",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/main.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "generate-non-keywords",
-                "--samples", "20",
-                "--avoid-keyword", "activate"
             ]
         },
         {
@@ -58,10 +54,6 @@
             "justMyCode": true,
             "args": [
                 "mix-audio",
-                "--keyword", "activate",
-                "--num-mixes", "50",
-                "--min-snr", "-5",
-                "--max-snr", "20"
             ]
         },
         {
@@ -73,9 +65,6 @@
             "justMyCode": true,
             "args": [
                 "train",
-                "--keywords", "activate",
-                "--epochs", "50",
-                "--batch-size", "32"
             ]
         },
         {
@@ -87,7 +76,6 @@
             "justMyCode": true,
             "args": [
                 "test-gtts",
-                "--samples", "5",
             ]
         },
         {
@@ -99,7 +87,6 @@
             "justMyCode": true,
             "args": [
                 "test-non-keywords",
-                "--samples", "5",
             ]
         },
         {
@@ -111,7 +98,6 @@
             "justMyCode": true,
             "args": [
                 "test-mic",
-                "--threshold", "0.6"
             ]
         },
         {

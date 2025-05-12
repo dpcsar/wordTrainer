@@ -18,7 +18,9 @@ import random
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import from config and audio utils
-from config import VALIDATION_SPLIT, DEFAULT_NEGATIVE_SAMPLES_RATIO, SAMPLE_RATE, FEATURE_PARAMS, DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE, DEFAULT_LEARNING_RATE
+from config import (VALIDATION_SPLIT, DEFAULT_NEGATIVE_SAMPLES_RATIO, SAMPLE_RATE,
+                   FEATURE_PARAMS, DEFAULT_EPOCHS, DEFAULT_BATCH_SIZE, DEFAULT_LEARNING_RATE,
+                   EARLY_STOPPING_PATIENCE, DATA_DIR, MODELS_DIR, DEFAULT_KEYWORD)
 from src.audio_utils import load_audio, extract_features
 
 class KeywordDetectionModelTrainer:
@@ -74,7 +76,6 @@ class KeywordDetectionModelTrainer:
         """
         mixed_data_dir = os.path.join(self.data_dir, 'mixed')
         backgrounds_dir = os.path.join(self.data_dir, 'backgrounds')
-        non_keywords_dir = os.path.join(self.data_dir, 'keywords', 'non_keywords')
         
         # Check if mixed data directory exists
         if not os.path.exists(mixed_data_dir):
@@ -97,17 +98,6 @@ class KeywordDetectionModelTrainer:
             print(f"Warning: Background metadata not found at {backgrounds_metadata_path}")
             backgrounds_metadata = {}
             
-        # Load non-keywords metadata if available
-        non_keywords_metadata = {}
-        non_keywords_metadata_path = os.path.join(non_keywords_dir.data_dir, 'metadata.json')
-        if os.path.exists(non_keywords_metadata_path):
-            with open(non_keywords_metadata_path, 'r') as f:
-                keywords_metadata = json.load(f)
-                if "non_keywords" in keywords_metadata:
-                    non_keywords_metadata = {"non_keywords": keywords_metadata["non_keywords"]}
-                    print(f"Loaded {keywords_metadata['non_keywords']['count']} non-keyword samples")
-        else:
-            print(f"Warning: Non-keywords metadata not found at {non_keywords_metadata_path}")
         
         # Prepare dataset
         dataset = {
@@ -147,77 +137,72 @@ class KeywordDetectionModelTrainer:
                         'metadata': sample
                     })
         
-        # Create negative samples using background noise and non-keywords
         negative_samples = []
         num_negative_samples = int(len(positive_samples) * negative_samples_ratio)
-        print(f"Creating {num_negative_samples} negative samples based on ratio {negative_samples_ratio}")
         
-        # Add non-keyword samples as negative examples (these are actual words, better for discrimination)
-        if "non_keywords" in non_keywords_metadata:
-            print("Adding non-keyword samples as negative examples...")
-            for sample in non_keywords_metadata["non_keywords"]["samples"]:
-                file_path = os.path.join(self.data_dir, 'keywords', 'non_keywords', sample['file'])
-                if os.path.exists(file_path):
+        mixed_non_keywords_added = 0
+        
+        # Load negative samples (non-keywords) in a similar way to positive samples
+        if "non_keywords" in mixed_metadata:
+            print("Adding mixed non-keyword samples as negative examples...")
+            
+            # Similar to how we handle keywords, get all non_keyword samples
+            non_keyword_samples = mixed_metadata["non_keywords"]["samples"]
+            for sample in non_keyword_samples:
+                sample_path = os.path.join(mixed_data_dir, "non_keywords", sample['file'])
+                if os.path.exists(sample_path):
+                    # Extract the actual non-keyword name from metadata or filename
+                    non_keyword_name = None
+                    if 'non_keyword' in sample:
+                        non_keyword_name = sample['non_keyword']
+                    else:
+                        # Try to parse from filename (non_keyword_play_propeller_neg1p4db_abab6342.wav)
+                        parts = os.path.basename(sample_path).split('_')
+                        if len(parts) > 2 and parts[0] == 'non' and parts[1] == 'keyword':
+                            non_keyword_name = parts[2]
+                    
                     negative_samples.append({
-                        'path': file_path,
+                        'path': sample_path,
                         'label': 0,  # 0 is for negative class
                         'keyword': None,
-                        'non_keyword': sample.get('non_keyword'),
+                        'non_keyword': non_keyword_name,
                         'metadata': sample,
-                        'type': 'non-keyword'
+                        'type': 'mixed-non-keyword'
                     })
+                    mixed_non_keywords_added += 1
+            
+            if mixed_non_keywords_added > 0:
+                print(f"Added {mixed_non_keywords_added} mixed non-keyword samples as negative examples")
         
-        # Add background noise as negative samples
-        print("Adding background noise samples as negative examples...")
-        for noise_type in ['propeller', 'jet', 'cockpit']:
-            if noise_type in backgrounds_metadata:
-                for sample in backgrounds_metadata[noise_type]['samples']:
-                    file_path = os.path.join(backgrounds_dir, noise_type, sample['file'])
-                    if os.path.exists(file_path):
-                        negative_samples.append({
-                            'path': file_path,
-                            'label': 0,  # 0 is for negative class
-                            'keyword': None,
-                            'metadata': sample,
-                            'type': 'background'
-                        })
-        
-        # If we don't have enough negative samples, create more by using keyword samples as negatives
-        # for other keywords (e.g., "hello" can be a negative example for "activate")
-        if len(negative_samples) < num_negative_samples and len(mixed_metadata) > 1:
-            print("Adding other keyword samples as negative examples...")
-            for keyword in mixed_metadata:
-                if keyword not in keywords:  # Only use non-target keywords as negatives
-                    keyword_samples = mixed_metadata[keyword]['samples']
-                    for sample in keyword_samples:
-                        sample_path = os.path.join(mixed_data_dir, keyword, sample['file'])
-                        if os.path.exists(sample_path):
-                            negative_samples.append({
-                                'path': sample_path,
-                                'label': 0,  # 0 is for negative class
-                                'keyword': keyword,
-                                'metadata': sample,
-                                'type': 'other-keyword'
-                            })
-        
-        # If we still don't have enough negative samples, use segments from positive samples
-        # that don't contain the keyword (e.g., silence/background parts)
-        # Note: This would require more advanced audio processing
-
+        # Check if we have enough negative samples (at least 30% of requested amount)
+        if len(negative_samples) < num_negative_samples * 0.3:
+            raise ValueError(f"Not enough negative samples found. Found {len(negative_samples)} but need at least {int(num_negative_samples * 0.3)} (30% of the requested {num_negative_samples}). Please generate more non-keywords or use a lower negative samples ratio.")
+            
         # Shuffle and limit negative samples to the desired ratio
         random.shuffle(negative_samples)
         negative_samples = negative_samples[:num_negative_samples]
         
-        # Combine positive and negative samples
-        all_samples = positive_samples + negative_samples
+        # Ensure we have at least some negative samples for validation
+        min_negative_for_validation = max(2, int(len(negative_samples) * validation_split))
+        if len(negative_samples) < min_negative_for_validation + 2:
+            raise ValueError(f"Not enough negative samples for validation. Found {len(negative_samples)} but need at least {min_negative_for_validation + 2}. Please generate more non-keywords or use a lower validation split.")
         
-        # Shuffle all samples
-        random.shuffle(all_samples)
+        # Split positive and negative samples separately to ensure balanced validation set
+        pos_split_idx = int(len(positive_samples) * (1 - validation_split))
+        neg_split_idx = int(len(negative_samples) * (1 - validation_split))
         
-        # Split into training and validation
-        split_idx = int(len(all_samples) * (1 - validation_split))
-        train_samples = all_samples[:split_idx]
-        validation_samples = all_samples[split_idx:]
+        pos_train = positive_samples[:pos_split_idx]
+        pos_val = positive_samples[pos_split_idx:]
+        neg_train = negative_samples[:neg_split_idx]
+        neg_val = negative_samples[neg_split_idx:]
+        
+        # Combine samples
+        train_samples = pos_train + neg_train
+        validation_samples = pos_val + neg_val
+        
+        # Shuffle training and validation samples
+        random.shuffle(train_samples)
+        random.shuffle(validation_samples)
         
         print(f"Preparing dataset with {len(train_samples)} training and {len(validation_samples)} validation samples")
         
@@ -252,11 +237,16 @@ class KeywordDetectionModelTrainer:
                 negative_count += 1
             else:
                 positive_count += 1
+        
+        # Count validation samples        
+        val_negative_count = sum(1 for label in dataset['validation']['labels'] if label == 0)
+        val_positive_count = len(dataset['validation']['labels']) - val_negative_count
                 
         # Print dataset statistics
         print(f"Dataset prepared with {len(dataset['train']['features'])} training and "
               f"{len(dataset['validation']['features'])} validation samples")
         print(f"Training set: {positive_count} positive samples, {negative_count} negative samples")
+        print(f"Validation set: {val_positive_count} positive samples, {val_negative_count} negative samples")
         
         # Count negative sample types
         negative_types_count = {}
@@ -265,7 +255,10 @@ class KeywordDetectionModelTrainer:
             if sample_type not in negative_types_count:
                 negative_types_count[sample_type] = 0
             negative_types_count[sample_type] += 1
-            
+        
+        # Set the negative_types variable for backward compatibility
+        negative_types = negative_types_count
+        
         print("Negative samples breakdown:")
         for sample_type, count in negative_types_count.items():
             print(f"  - {sample_type}: {count} samples")
@@ -399,7 +392,7 @@ class KeywordDetectionModelTrainer:
         # Callbacks
         callbacks = [
             tf.keras.callbacks.EarlyStopping(
-                monitor='val_loss', patience=10, restore_best_weights=True
+                monitor='val_loss', patience=EARLY_STOPPING_PATIENCE, restore_best_weights=True
             ),
             tf.keras.callbacks.ReduceLROnPlateau(
                 monitor='val_loss', factor=0.5, patience=5, min_lr=1e-6
@@ -409,12 +402,28 @@ class KeywordDetectionModelTrainer:
         # Train model
         print(f"Training model for {epochs} epochs with batch size {batch_size}")
         
+        # Add class weights to handle imbalanced datasets
+        class_weights = None
+        if negative_samples_ratio != 1.0:
+            total_samples = len(dataset['train']['labels'])
+            n_negative = sum(1 for label in dataset['train']['labels'] if label == 0)
+            n_positive = total_samples - n_negative
+            
+            # Calculate class weights
+            class_weights = {
+                0: total_samples / (2 * n_negative) if n_negative > 0 else 1.0,  # Negative class
+                1: total_samples / (2 * n_positive) if n_positive > 0 else 1.0  # Positive class
+            }
+            
+            print(f"Using class weights: {class_weights}")
+        
         history = model.fit(
             dataset['train']['features'], dataset['train']['labels'],
             validation_data=(dataset['validation']['features'], dataset['validation']['labels']),
             epochs=epochs,
             batch_size=batch_size,
             callbacks=callbacks,
+            class_weight=class_weights,
             verbose=1
         )
         
@@ -664,30 +673,21 @@ class KeywordDetectionModelTrainer:
 
 def main():
     parser = argparse.ArgumentParser(description='Train a keyword detection model')
-    parser.add_argument('--keywords', type=str, nargs='+', required=True, 
+    parser.add_argument('--keywords', type=str, nargs='+', default=[DEFAULT_KEYWORD], 
                         help='Keywords to detect')
-    parser.add_argument('--data-dir', type=str, default='../data', 
+    parser.add_argument('--data-dir', type=str, default=DATA_DIR, 
                         help='Directory containing audio data')
-    parser.add_argument('--model-dir', type=str, default='../models', 
+    parser.add_argument('--model-dir', type=str, default=MODELS_DIR, 
                         help='Directory to save trained models')
-    parser.add_argument('--epochs', type=int, default=50, 
-                        help='Number of training epochs')
-    parser.add_argument('--batch-size', type=int, default=32, 
-                        help='Training batch size')
-    parser.add_argument('--learning-rate', type=float, default=0.001, 
-                        help='Initial learning rate')
-    parser.add_argument('--negative-samples-ratio', type=float, default=1.0, 
-                        help='Ratio of negative samples to include (relative to positives)')
+    parser.add_argument('--epochs', type=int, default=DEFAULT_EPOCHS, 
+                        help=f'Number of training epochs (default: {DEFAULT_EPOCHS})')
+    parser.add_argument('--batch-size', type=int, default=DEFAULT_BATCH_SIZE, 
+                        help=f'Training batch size (default: {DEFAULT_BATCH_SIZE})')
+    parser.add_argument('--learning-rate', type=float, default=DEFAULT_LEARNING_RATE, 
+                        help=f'Initial learning rate (default: {DEFAULT_LEARNING_RATE})')
+    parser.add_argument('--negative-samples-ratio', type=float, default=DEFAULT_NEGATIVE_SAMPLES_RATIO, 
+                        help=f'Ratio of negative samples to include relative to positives (default: {DEFAULT_NEGATIVE_SAMPLES_RATIO})')
     args = parser.parse_args()
-    
-    # Convert relative paths to absolute paths if needed
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    if not os.path.isabs(args.data_dir):
-        args.data_dir = os.path.abspath(os.path.join(script_dir, args.data_dir))
-    
-    if not os.path.isabs(args.model_dir):
-        args.model_dir = os.path.abspath(os.path.join(script_dir, args.model_dir))
     
     trainer = KeywordDetectionModelTrainer(args.data_dir, args.model_dir)
     trainer.train_model(

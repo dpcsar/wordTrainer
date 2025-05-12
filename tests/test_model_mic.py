@@ -15,7 +15,9 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import MODELS_DIR, DEFAULT_DETECTION_THRESHOLD, SAMPLE_RATE, DEFAULT_AUDIO_DURATION, DEFAULT_BUFFER_DURATION
+from config import (MODELS_DIR, DEFAULT_DETECTION_THRESHOLD, SAMPLE_RATE, 
+                    DEFAULT_AUDIO_DURATION, DEFAULT_BUFFER_DURATION, DEFAULT_KEYWORD,
+                    BASE_DIR)
 from src.audio_utils import extract_features
 
 import sounddevice as sd
@@ -419,23 +421,19 @@ def main():
     parser = argparse.ArgumentParser(description='Test keyword detection model using microphone')
     parser.add_argument('--model', type=str,
                         help='Path to trained model (.h5 or .tflite)')
-    parser.add_argument('--keyword', type=str,
-                        help='Keyword to find the latest model for (e.g., "activate")')
+    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD,
+                        help=f'Keyword to find the latest model for (default: {DEFAULT_KEYWORD})')
     parser.add_argument('--threshold', type=float, default=DEFAULT_DETECTION_THRESHOLD, 
-                        help='Detection threshold (default: from config)')
+                        help=f'Detection threshold (default: {DEFAULT_DETECTION_THRESHOLD})')
     parser.add_argument('--device', type=int, 
                         help='Audio device index')
     parser.add_argument('--list-models', action='store_true',
                         help='List available models and exit')
     args = parser.parse_args()
     
-    # Convert relative paths to absolute paths if needed
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
     # List available models if requested
     if args.list_models:
-        models_dir = os.path.abspath(os.path.join(script_dir, '..', 'models'))
-        tflite_files = glob.glob(os.path.join(models_dir, '*.tflite'))
+        tflite_files = glob.glob(os.path.join(MODELS_DIR, '*.tflite'))
         if tflite_files:
             print("Available models:")
             for model in tflite_files:
@@ -448,19 +446,13 @@ def main():
     model_path = None
     if args.model:
         if not os.path.isabs(args.model):
-            model_path = os.path.abspath(os.path.join(script_dir, '..', args.model))
+            model_path = os.path.join(BASE_DIR, args.model)
         else:
             model_path = args.model
     elif args.keyword:
         model_path = find_latest_model_by_keyword(args.keyword)
         if not model_path:
             print(f"Error: No model found for keyword '{args.keyword}'")
-            return
-    else:
-        # If neither --model nor --keyword specified, try to find the most recent model
-        model_path = find_latest_model_by_keyword()
-        if not model_path:
-            print("Error: No model specified (use --model or --keyword) and no models found")
             return
     
     detector = MicrophoneDetector(model_path, args.threshold)

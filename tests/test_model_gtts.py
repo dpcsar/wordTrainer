@@ -16,7 +16,8 @@ import glob
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import MODELS_DIR, KEYWORDS_DIR, SAMPLE_RATE
+from config import (MODELS_DIR, KEYWORDS_DIR, SAMPLE_RATE, DEFAULT_TEST_SAMPLES,
+                    DEFAULT_KEYWORD, FEATURE_PARAMS)
 from src.audio_utils import load_audio, extract_features, plot_waveform
 
 class KeywordDetectionTester:
@@ -59,8 +60,8 @@ class KeywordDetectionTester:
                 raise ValueError(f"Model {model_name} not found in metadata")
         else:
             print(f"Warning: Model metadata not found at {metadata_path}")
-            self.keywords = []
-            self.feature_params = {}
+            self.keywords = [DEFAULT_KEYWORD]  # Default to the configured keyword
+            self.feature_params = FEATURE_PARAMS  # Use default feature parameters from config
         
         # Load model
         if model_path.endswith('.tflite'):
@@ -101,10 +102,16 @@ class KeywordDetectionTester:
         # Number of classes is the last dimension of output shape
         num_classes = self.output_details[0]['shape'][-1]
         if not self.keywords:
-            # Infer number of keywords from output shape
-            self.keywords = [f"keyword_{i}" for i in range(1, num_classes)]
+            # Try to use DEFAULT_KEYWORD if output shape matches, otherwise infer generic keywords
+            if num_classes == 2:  # Binary classification (negative + 1 keyword)
+                self.keywords = [DEFAULT_KEYWORD]
+                print(f"Using default keyword: {DEFAULT_KEYWORD}")
+            else:
+                # Infer number of keywords from output shape
+                self.keywords = [f"keyword_{i}" for i in range(1, num_classes)]
+                print(f"Inferred keywords: {self.keywords}")
+            
             self.class_names = ['negative'] + self.keywords
-            print(f"Inferred keywords: {self.keywords}")
     
     def extract_features(self, audio_data):
         """
@@ -116,10 +123,11 @@ class KeywordDetectionTester:
         Returns:
             features: Extracted features
         """
-        # Extract MFCCs
-        n_mfcc = self.feature_params.get('n_mfcc', 13)
-        n_fft = self.feature_params.get('n_fft', 512)
-        hop_length = self.feature_params.get('hop_length', 160)
+        # Extract MFCCs - use model feature params if available, otherwise fallback to config defaults
+        feature_params = getattr(self, 'feature_params', {}) or FEATURE_PARAMS
+        n_mfcc = feature_params.get('n_mfcc', FEATURE_PARAMS.get('n_mfcc', 13))
+        n_fft = feature_params.get('n_fft', FEATURE_PARAMS.get('n_fft', 512))
+        hop_length = feature_params.get('hop_length', FEATURE_PARAMS.get('hop_length', 160))
         
         mfccs = extract_features(
             audio_data, 
@@ -402,14 +410,14 @@ def main():
     parser = argparse.ArgumentParser(description='Test keyword detection model using gTTS samples')
     parser.add_argument('--model', type=str,
                         help='Path to trained model (.h5 or .tflite)')
-    parser.add_argument('--keyword', type=str,
-                        help='Keyword to find the latest model for (e.g., "activate")')
+    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD,
+                        help=f'Keyword to find the latest model for (e.g., "{DEFAULT_KEYWORD}")')
     parser.add_argument('--file', type=str, 
                         help='Path to a single audio file to test')
     parser.add_argument('--dir', type=str, 
                         help='Directory containing audio files to test')
-    parser.add_argument('--samples', type=int, default=10, 
-                        help='Maximum number of samples to test in batch mode')
+    parser.add_argument('--samples', type=int, default=DEFAULT_TEST_SAMPLES, 
+                        help=f'Maximum number of samples to test in batch mode (default: {DEFAULT_TEST_SAMPLES})')
     parser.add_argument('--keywords-dir', type=str, default=KEYWORDS_DIR, 
                         help='Directory containing keyword samples')
     parser.add_argument('--list-models', action='store_true',
@@ -443,21 +451,6 @@ def main():
         if not model_path:
             print(f"Error: No model found for keyword '{args.keyword}'")
             return
-    else:
-        # If neither --model nor --keyword specified, try to find the most recent model
-        model_path = find_latest_model_by_keyword()
-        if not model_path:
-            print("Error: No model specified (use --model or --keyword) and no models found")
-            return
-    
-    if args.file and not os.path.isabs(args.file):
-        args.file = os.path.abspath(os.path.join(script_dir, args.file))
-    
-    if args.dir and not os.path.isabs(args.dir):
-        args.dir = os.path.abspath(os.path.join(script_dir, args.dir))
-    
-    if not os.path.isabs(args.keywords_dir):
-        args.keywords_dir = os.path.abspath(os.path.join(script_dir, args.keywords_dir))
     
     # Create the tester with the model
     tester = KeywordDetectionTester(model_path, args.keywords_dir)

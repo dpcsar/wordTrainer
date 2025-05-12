@@ -13,7 +13,6 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import MODELS_DIR
 
 def prepare_for_android(model_path, output_dir=None):
     """
@@ -475,15 +474,6 @@ def main():
     parser.add_argument('--create-template', action='store_true',
                         help='Create Android integration template')
     args = parser.parse_args()
-    
-    # Convert relative paths to absolute paths if needed
-    if not os.path.isabs(args.model):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        args.model = os.path.abspath(os.path.join(script_dir, args.model))
-    
-    if args.output_dir and not os.path.isabs(args.output_dir):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        args.output_dir = os.path.abspath(os.path.join(script_dir, args.output_dir))
     
     # Prepare model for Android
     output_path = prepare_for_android(args.model, args.output_dir)

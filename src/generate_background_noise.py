@@ -16,7 +16,8 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import from audio_utils and config
 from src.audio_utils import save_audio
-from config import SAMPLE_RATE
+from config import (SAMPLE_RATE, BACKGROUNDS_DIR, DEFAULT_BACKGROUND_SAMPLES,
+                    DEFAULT_MIN_DURATION, DEFAULT_MAX_DURATION)
 
 class BackgroundNoiseGenerator:
     def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
@@ -295,16 +296,11 @@ def main():
     parser = argparse.ArgumentParser(description='Generate background noise samples for aircraft environments')
     parser.add_argument('--type', type=str, choices=['propeller', 'jet', 'cockpit', 'all'], 
                         default='all', help='Type of noise to generate')
-    parser.add_argument('--samples', type=int, default=20, help='Number of samples to generate')
-    parser.add_argument('--output-dir', type=str, default='../data/backgrounds', help='Output directory')
-    parser.add_argument('--min-duration', type=float, default=3.0, help='Minimum duration in seconds')
-    parser.add_argument('--max-duration', type=float, default=10.0, help='Maximum duration in seconds')
+    parser.add_argument('--samples', type=int, default=DEFAULT_BACKGROUND_SAMPLES, help='Number of samples to generate')
+    parser.add_argument('--output-dir', type=str, default=BACKGROUNDS_DIR, help='Output directory')
+    parser.add_argument('--min-duration', type=float, default=DEFAULT_MIN_DURATION, help='Minimum duration in seconds')
+    parser.add_argument('--max-duration', type=float, default=DEFAULT_MAX_DURATION, help='Maximum duration in seconds')
     args = parser.parse_args()
-    
-    # Convert relative path to absolute path if needed
-    if not os.path.isabs(args.output_dir):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        args.output_dir = os.path.abspath(os.path.join(script_dir, args.output_dir))
     
     generator = BackgroundNoiseGenerator(args.output_dir)
     

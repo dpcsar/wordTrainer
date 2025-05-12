@@ -17,11 +17,12 @@ import glob
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import MODELS_DIR, KEYWORDS_DIR, SAMPLE_RATE
+from config import (MODELS_DIR, KEYWORDS_DIR, SAMPLE_RATE, DEFAULT_DETECTION_THRESHOLD,
+                    DEFAULT_KEYWORD, DEFAULT_TEST_SAMPLES, FEATURE_PARAMS, DEFAULT_SHOW_PLOTS)
 from src.audio_utils import load_audio, extract_features, plot_waveform
 
 class NonKeywordTester:
-    def __init__(self, model_path, keywords_dir, sample_rate=SAMPLE_RATE):
+    def __init__(self, model_path, keywords_dir, sample_rate=SAMPLE_RATE, threshold=None):
         """
         Initialize NonKeywordTester.
         
@@ -29,7 +30,9 @@ class NonKeywordTester:
             model_path: Path to trained model (.h5 or .tflite)
             keywords_dir: Directory containing keyword samples
             sample_rate: Audio sample rate (default from config.SAMPLE_RATE)
+            threshold: Detection threshold (None to use default from config)
         """
+        self.threshold = threshold if threshold is not None else DEFAULT_DETECTION_THRESHOLD
         self.model_path = model_path
         self.keywords_dir = keywords_dir
         self.sample_rate = sample_rate
@@ -117,10 +120,10 @@ class NonKeywordTester:
         Returns:
             features: Extracted features
         """
-        # Extract MFCCs
-        n_mfcc = self.feature_params.get('n_mfcc', 13)
-        n_fft = self.feature_params.get('n_fft', 512)
-        hop_length = self.feature_params.get('hop_length', 160)
+        # Extract MFCCs using defaults from config if not specified in model's feature_params
+        n_mfcc = self.feature_params.get('n_mfcc', FEATURE_PARAMS['n_mfcc'])
+        n_fft = self.feature_params.get('n_fft', FEATURE_PARAMS['n_fft'])
+        hop_length = self.feature_params.get('hop_length', FEATURE_PARAMS['hop_length'])
         
         mfccs = extract_features(
             audio_data, 
@@ -184,13 +187,13 @@ class NonKeywordTester:
             
             return predictions[0]
     
-    def test_file(self, file_path, plot_results=True):
+    def test_file(self, file_path, plot_results=DEFAULT_SHOW_PLOTS):
         """
         Test model on a single audio file.
         
         Args:
             file_path: Path to audio file
-            plot_results: Whether to plot waveform and spectrogram
+            plot_results: Whether to plot waveform and spectrogram (defaults to config.DEFAULT_SHOW_PLOTS)
             
         Returns:
             result: Dictionary with prediction results
@@ -211,16 +214,27 @@ class NonKeywordTester:
         predicted_label = self.class_names[predicted_class] if hasattr(self, 'class_names') else str(predicted_class)
         
         # Create result dictionary
+        threshold_exceeded = predictions[predicted_class] >= self.threshold
+        
         result = {
             'file': os.path.basename(file_path),
             'predicted_class': int(predicted_class),
             'predicted_label': predicted_label,
             'confidence': float(predictions[predicted_class]),
+            'threshold': float(self.threshold),
+            'threshold_exceeded': threshold_exceeded,
             'predictions': {self.class_names[i]: float(predictions[i]) for i in range(len(predictions))}
         }
         
         # Print result
         print(f"Predicted: {predicted_label} (Class {predicted_class}) with confidence {predictions[predicted_class]:.4f}")
+        print(f"Detection threshold: {self.threshold}")
+        
+        # Determine if prediction exceeds threshold
+        threshold_exceeded = predictions[predicted_class] >= self.threshold
+        status = "DETECTED" if threshold_exceeded else "BELOW THRESHOLD"
+        print(f"Status: {status}")
+        
         print("All predictions:")
         for i, prob in enumerate(predictions):
             class_name = self.class_names[i] if hasattr(self, 'class_names') else f"Class {i}"
@@ -259,7 +273,7 @@ class NonKeywordTester:
         audio_files = []
         for root, _, files in os.walk(directory):
             for file in files:
-                if file.endswith('.wav') or file.endswith('.mp3'):
+                if any(file.endswith(ext) for ext in ['.wav', '.mp3', '.flac', '.ogg']):
                     audio_files.append(os.path.join(root, file))
         
         if not audio_files:
@@ -284,16 +298,25 @@ class NonKeywordTester:
         
         # Calculate accuracy - for non-keywords, we want to see them classified as 'negative'
         # A correct classification for a non-keyword is predicted_class = 0 (negative)
-        correct = 0
+        correct_class = 0
+        correct_threshold = 0
         total = len(results)
         
         for result in results:
             if result['predicted_class'] == 0:  # 0 = negative class
-                correct += 1
+                correct_class += 1
+            
+            # Check if prediction is below threshold for non-negative classes
+            if result['predicted_class'] != 0 and result['confidence'] < self.threshold:
+                correct_threshold += 1
         
-        accuracy = correct / total * 100 if total > 0 else 0
+        accuracy_class = correct_class / total * 100 if total > 0 else 0
+        accuracy_with_threshold = (correct_class + correct_threshold) / total * 100 if total > 0 else 0
+        
         print(f"\nNon-Keyword Test Results:")
-        print(f"Correctly classified as negative: {correct}/{total} ({accuracy:.2f}%)")
+        print(f"Detection threshold: {self.threshold}")
+        print(f"Correctly classified as negative: {correct_class}/{total} ({accuracy_class:.2f}%)")
+        print(f"Correct with threshold applied: {correct_class + correct_threshold}/{total} ({accuracy_with_threshold:.2f}%)")
         
         # Print detailed results
         misclassified = []
@@ -422,13 +445,13 @@ def main():
     parser = argparse.ArgumentParser(description='Test keyword detection model using non-keywords samples')
     parser.add_argument('--model', type=str,
                         help='Path to trained model (.h5 or .tflite)')
-    parser.add_argument('--keyword', type=str,
-                        help='Keyword to find the latest model for (e.g., "activate")')
+    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD,
+                        help=f"Keyword to find the latest model for (default: {DEFAULT_KEYWORD})")
     parser.add_argument('--file', type=str, 
                         help='Path to a single audio file to test')
     parser.add_argument('--dir', type=str, 
                         help='Directory containing audio files to test')
-    parser.add_argument('--samples', type=int, default=10, 
+    parser.add_argument('--samples', type=int, default=DEFAULT_TEST_SAMPLES, 
                         help='Maximum number of samples to test in batch mode')
     parser.add_argument('--keywords-dir', type=str, default=KEYWORDS_DIR, 
                         help='Directory containing keyword samples')
@@ -436,6 +459,8 @@ def main():
                         help='List available models and exit')
     parser.add_argument('--check-exist', action='store_true',
                         help='Only check if non-keywords exist and exit')
+    parser.add_argument('--threshold', type=float, default=DEFAULT_DETECTION_THRESHOLD, 
+                        help=f'Detection threshold (default: {DEFAULT_DETECTION_THRESHOLD})')
     args = parser.parse_args()
     
     # Just check if non-keywords exist if --check-exist is specified
@@ -475,24 +500,9 @@ def main():
         if not model_path:
             print(f"Error: No model found for keyword '{args.keyword}'")
             return
-    else:
-        # If neither --model nor --keyword specified, try to find the most recent model
-        model_path = find_latest_model_by_keyword()
-        if not model_path:
-            print("Error: No model specified (use --model or --keyword) and no models found")
-            return
-    
-    if args.file and not os.path.isabs(args.file):
-        args.file = os.path.abspath(os.path.join(script_dir, args.file))
-    
-    if args.dir and not os.path.isabs(args.dir):
-        args.dir = os.path.abspath(os.path.join(script_dir, args.dir))
-    
-    if not os.path.isabs(args.keywords_dir):
-        args.keywords_dir = os.path.abspath(os.path.join(script_dir, args.keywords_dir))
     
     # Create the tester with the model
-    tester = NonKeywordTester(model_path, args.keywords_dir)
+    tester = NonKeywordTester(model_path, args.keywords_dir, threshold=args.threshold)
     
     if args.file:
         # Test single file
