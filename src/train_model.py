@@ -75,7 +75,6 @@ class KeywordDetectionModelTrainer:
             dataset: Dictionary containing training and validation data
         """
         mixed_data_dir = os.path.join(self.data_dir, 'mixed')
-        backgrounds_dir = os.path.join(self.data_dir, 'backgrounds')
         
         # Check if mixed data directory exists
         if not os.path.exists(mixed_data_dir):
@@ -88,16 +87,6 @@ class KeywordDetectionModelTrainer:
         
         with open(mixed_metadata_path, 'r') as f:
             mixed_metadata = json.load(f)
-        
-        # Load background noise metadata
-        backgrounds_metadata_path = os.path.join(backgrounds_dir, 'metadata.json')
-        if os.path.exists(backgrounds_metadata_path):
-            with open(backgrounds_metadata_path, 'r') as f:
-                backgrounds_metadata = json.load(f)
-        else:
-            print(f"Warning: Background metadata not found at {backgrounds_metadata_path}")
-            backgrounds_metadata = {}
-            
         
         # Prepare dataset
         dataset = {
@@ -228,7 +217,6 @@ class KeywordDetectionModelTrainer:
             dataset[split]['labels'] = np.array(dataset[split]['labels'])
         
         # Count sample types in training set
-        negative_types = {}
         negative_count = 0
         positive_count = 0
         
@@ -255,9 +243,6 @@ class KeywordDetectionModelTrainer:
             if sample_type not in negative_types_count:
                 negative_types_count[sample_type] = 0
             negative_types_count[sample_type] += 1
-        
-        # Set the negative_types variable for backward compatibility
-        negative_types = negative_types_count
         
         print("Negative samples breakdown:")
         for sample_type, count in negative_types_count.items():
@@ -406,14 +391,19 @@ class KeywordDetectionModelTrainer:
         class_weights = None
         if negative_samples_ratio != 1.0:
             total_samples = len(dataset['train']['labels'])
-            n_negative = sum(1 for label in dataset['train']['labels'] if label == 0)
-            n_positive = total_samples - n_negative
             
-            # Calculate class weights
-            class_weights = {
-                0: total_samples / (2 * n_negative) if n_negative > 0 else 1.0,  # Negative class
-                1: total_samples / (2 * n_positive) if n_positive > 0 else 1.0  # Positive class
-            }
+            # Count samples per class
+            class_counts = {}
+            for label in dataset['train']['labels']:
+                if label not in class_counts:
+                    class_counts[label] = 0
+                class_counts[label] += 1
+            
+            # Calculate weights for all classes
+            class_weights = {}
+            n_classes = len(class_counts)
+            for label, count in class_counts.items():
+                class_weights[label] = total_samples / (n_classes * count) if count > 0 else 1.0
             
             print(f"Using class weights: {class_weights}")
         
@@ -667,9 +657,15 @@ class KeywordDetectionModelTrainer:
             # Log basic accuracy
             accuracy = np.mean(validation_data['labels'] == predicted_classes)
             print(f"Validation accuracy: {accuracy:.4f}")
-            report_path = os.path.join(self.model_dir, f"{model_name}_accuracy.txt")
+            
+            # Create a simplified JSON report for consistency
+            simple_report = {
+                "accuracy": float(accuracy),
+                "error": str(e)
+            }
+            report_path = os.path.join(self.model_dir, f"{model_name}_report.json")
             with open(report_path, 'w') as f:
-                f.write(f"Accuracy: {accuracy:.4f}\n")
+                json.dump(simple_report, f, indent=2)
 
 def main():
     parser = argparse.ArgumentParser(description='Train a keyword detection model')

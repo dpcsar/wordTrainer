@@ -30,12 +30,12 @@ FEATURE_PARAMS = {
 DEFAULT_LEARNING_RATE = 0.001
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_EPOCHS = 50
-VALIDATION_SPLIT = 0.2
+VALIDATION_SPLIT = 0.3
 EARLY_STOPPING_PATIENCE = 10
 
 # Detection settings
 DEFAULT_DETECTION_THRESHOLD = 0.5
-DEFAULT_KEYWORD = "activate"  # Default keyword for model training and testing
+DEFAULT_KEYWORD = "hey jarvis"  # Default keyword for model training and testing
 
 # Age groups for simulation
 AGE_GROUPS = ['child', 'young_adult', 'adult', 'senior']
@@ -44,7 +44,7 @@ AGE_GROUPS = ['child', 'young_adult', 'adult', 'senior']
 NOISE_TYPES = ['propeller', 'jet', 'cockpit']
 
 # Audio generation settings
-DEFAULT_KEYWORD_SAMPLES = 10
+DEFAULT_KEYWORD_SAMPLES = 100
 DEFAULT_NEGATIVE_SAMPLES_RATIO = 3.0
 DEFAULT_NON_KEYWORD_SAMPLES = int(DEFAULT_KEYWORD_SAMPLES * DEFAULT_NEGATIVE_SAMPLES_RATIO)
 DEFAULT_SILENCE_MS = 500
@@ -82,10 +82,11 @@ DEFAULT_SNR_RANGE = (-5, 20)
 # Non-keywords folder name for organization
 NON_KEYWORDS_DIR = 'non_keywords'
 
-# List of common words to use as non-keywords
 # These are selected to be distinct from typical wake words 
 # but represent a variety of speech patterns
-NON_KEYWORDS = [
+NON_KEYWORDS = []  # This will be populated from COMMON_WORDS and COMMON_1000_WORDS
+
+COMMON_WORDS = [
     "hello", "thanks", "sorry", "please", "coffee", 
     "water", "today", "weather", "music", "play",
     "stop", "pause", "continue", "next", "previous",
@@ -227,3 +228,6 @@ COMMON_1000_WORDS = [ "a", "able", "about", "above", "access", "accessories",
   "words", "work", "working", "works", "world", "would", "write", "writing",
   "written", "yahoo", "year", "years", "yellow", "yes", "yet", "york", "you",
   "young", "your" ]
+
+# Merge COMMON_WORDS and COMMON_1000_WORDS into NON_KEYWORDS
+NON_KEYWORDS = list(set(COMMON_WORDS + COMMON_1000_WORDS))

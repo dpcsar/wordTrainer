@@ -6,14 +6,16 @@ import os
 import numpy as np
 import soundfile as sf
 import librosa
+import librosa.display
 from pydub import AudioSegment
 from scipy import signal
 import matplotlib.pyplot as plt
+import random
 import sys
 
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import SAMPLE_RATE, FEATURE_PARAMS
+from config import SAMPLE_RATE
 
 def load_audio(file_path, target_sr=SAMPLE_RATE):
     """
@@ -24,125 +26,174 @@ def load_audio(file_path, target_sr=SAMPLE_RATE):
         target_sr: Target sample rate
         
     Returns:
-        audio_data: Audio samples as numpy array
+        audio: Audio samples
         sr: Sample rate
     """
-    audio_data, sr = librosa.load(file_path, sr=target_sr)
-    return audio_data, sr
-
-def save_audio(audio_data, file_path, sr=SAMPLE_RATE):
-    """
-    Save audio data to file.
-    
-    Args:
-        audio_data: Audio samples as numpy array
-        file_path: Output file path
-        sr: Sample rate
-    """
-    sf.write(file_path, audio_data, sr)
-
-def calculate_snr(signal, noise):
-    """
-    Calculate SNR in dB between signal and noise.
-    
-    Args:
-        signal: Signal array
-        noise: Noise array
+    try:
+        # Use librosa to load audio file (handles various formats)
+        audio, sr = librosa.load(file_path, sr=target_sr, mono=True)
+        return audio, sr
         
-    Returns:
-        snr_db: SNR in dB
-    """
-    signal_power = np.mean(signal ** 2)
-    noise_power = np.mean(noise ** 2)
-    snr = signal_power / noise_power if noise_power > 0 else float('inf')
-    snr_db = 10 * np.log10(snr) if snr > 0 else float('-inf')
-    return snr_db
+    except Exception as e:
+        # Fallback to pydub if librosa fails
+        try:
+            print(f"Librosa failed to load {file_path}, trying with pydub. Error: {str(e)}")
+            audio_segment = AudioSegment.from_file(file_path)
+            audio_segment = audio_segment.set_frame_rate(target_sr)
+            audio_segment = audio_segment.set_channels(1)
+            audio = np.array(audio_segment.get_array_of_samples(), dtype=np.float32) / 32768.0
+            return audio, target_sr
+            
+        except Exception as e2:
+            print(f"Failed to load {file_path} with error: {str(e2)}")
+            raise e2
 
-def adjust_noise_for_snr(signal, noise, target_snr_db):
-    """
-    Adjust noise level to achieve target SNR.
-    
-    Args:
-        signal: Signal array
-        noise: Noise array
-        target_snr_db: Target SNR in dB
-        
-    Returns:
-        adjusted_noise: Adjusted noise array
-    """
-    signal_power = np.mean(signal ** 2)
-    noise_power = np.mean(noise ** 2)
-    
-    # Calculate the noise scaling factor to achieve target SNR
-    current_snr = signal_power / noise_power if noise_power > 0 else float('inf')
-    current_snr_db = 10 * np.log10(current_snr) if current_snr > 0 else float('-inf')
-    
-    adjustment_db = current_snr_db - target_snr_db
-    adjustment_factor = 10 ** (adjustment_db / 10)
-    
-    adjusted_noise = noise * np.sqrt(adjustment_factor)
-    return adjusted_noise
-
-def mix_audio(signal, noise, target_snr_db):
-    """
-    Mix signal with noise at specified SNR.
-    
-    Args:
-        signal: Signal array
-        noise: Noise array
-        target_snr_db: Target SNR in dB
-        
-    Returns:
-        mixed: Signal + noise mixture
-    """
-    # Make sure noise is at least as long as signal
-    if len(noise) < len(signal):
-        # Tile the noise to make it long enough
-        noise = np.tile(noise, int(np.ceil(len(signal) / len(noise))))
-        noise = noise[:len(signal)]
-    else:
-        # Take a random segment from noise that matches signal length
-        start = np.random.randint(0, len(noise) - len(signal) + 1)
-        noise = noise[start:start + len(signal)]
-    
-    # Adjust noise to achieve target SNR
-    adjusted_noise = adjust_noise_for_snr(signal, noise, target_snr_db)
-    
-    # Mix signal and noise
-    mixed = signal + adjusted_noise
-    
-    # Normalize to prevent clipping
-    max_val = np.max(np.abs(mixed))
-    if max_val > 1.0:
-        mixed = mixed / max_val * 0.95  # 0.95 to leave some headroom
-        
-    return mixed
-
-def extract_features(audio, sr=SAMPLE_RATE, n_mfcc=FEATURE_PARAMS['n_mfcc'], n_fft=FEATURE_PARAMS['n_fft'], hop_length=FEATURE_PARAMS['hop_length']):
+def extract_features(audio, sr=SAMPLE_RATE, n_mfcc=13, n_fft=512, hop_length=160):
     """
     Extract MFCC features from audio.
     
     Args:
         audio: Audio samples
-        sr: Sample rate (default from config.SAMPLE_RATE)
-        n_mfcc: Number of MFCCs to extract (default from config.FEATURE_PARAMS)
-        n_fft: FFT window size (default from config.FEATURE_PARAMS)
-        hop_length: Hop length for FFT (default from config.FEATURE_PARAMS)
+        sr: Sample rate
+        n_mfcc: Number of MFCC coefficients to extract
+        n_fft: FFT window size
+        hop_length: Hop length between frames
         
     Returns:
         mfccs: MFCC features
     """
-        
+    # Extract MFCCs
     mfccs = librosa.feature.mfcc(
-        y=audio, 
-        sr=sr, 
-        n_mfcc=n_mfcc, 
-        n_fft=n_fft, 
+        y=audio,
+        sr=sr,
+        n_mfcc=n_mfcc,
+        n_fft=n_fft,
         hop_length=hop_length
     )
-    # Normalize the MFCCs
-    mfccs = (mfccs - np.mean(mfccs, axis=1, keepdims=True)) / (np.std(mfccs, axis=1, keepdims=True) + 1e-8)
-    return mfccs
+    
+    # Add MFCC deltas and delta-deltas for additional features
+    mfcc_delta = librosa.feature.delta(mfccs)
+    mfcc_delta2 = librosa.feature.delta(mfccs, order=2)
+    
+    # Combine features
+    features = np.vstack([mfccs, mfcc_delta, mfcc_delta2])
+    
+    return features
+
+def resample_audio(audio, orig_sr, target_sr):
+    """
+    Resample audio to target sample rate.
+    
+    Args:
+        audio: Audio samples
+        orig_sr: Original sample rate
+        target_sr: Target sample rate
+        
+    Returns:
+        resampled: Resampled audio
+    """
+    if orig_sr == target_sr:
+        return audio
+    
+    resampled = librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr)
+    
+    return resampled
+
+def adjust_pitch_by_age_gender(audio, age_group, gender, reference_frame_rate=44100):
+    """
+    Adjust audio pitch based on age group and gender.
+    
+    Args:
+        audio: AudioSegment object to modify
+        age_group: Age group ('child', 'young_adult', 'adult', 'senior')
+        gender: Gender ('male', 'female')
+        reference_frame_rate: Reference frame rate to reset to after modification
+    
+    Returns:
+        AudioSegment: Audio with adjusted pitch
+    """
+    octaves = 0  # Default: no change
+    
+    # First adjust by age group
+    if age_group == 'child':
+        if gender == 'female':
+            octaves = 0.3  # higher pitch for female children
+        else:
+            octaves = 0.1  # not as high for male children
+    elif age_group == 'senior':
+        if gender == 'female':
+            octaves = -0.2  # lower pitch for senior females
+        else:
+            octaves = -0.5  # even lower for senior males
+    # Then adjust by gender for adults and young adults
+    elif gender == 'male':
+        if age_group == 'adult':
+            octaves = -0.4  # much lower pitch for adult males
+        elif age_group == 'young_adult':
+            octaves = -0.35  # lower pitch for young adult males
+    
+    # Only modify if there's a pitch change
+    if octaves != 0:
+        audio = audio._spawn(audio.raw_data, overrides={
+            "frame_rate": int(audio.frame_rate * (2.0 ** octaves))
+        })
+        audio = audio.set_frame_rate(reference_frame_rate)
+    
+    return audio
+
+def normalize_audio(audio):
+    """
+    Normalize audio to have max amplitude of 1.
+    
+    Args:
+        audio: Audio samples
+        
+    Returns:
+        normalized: Normalized audio
+    """
+    if np.max(np.abs(audio)) > 0:
+        return audio / np.max(np.abs(audio))
+    return audio
+
+def add_noise(audio, noise_level=0.005):
+    """
+    Add random noise to audio.
+    
+    Args:
+        audio: Audio samples
+        noise_level: Noise level (0.0 to 1.0)
+        
+    Returns:
+        noisy_audio: Audio with added noise
+    """
+    noise = np.random.randn(len(audio)) * noise_level
+    noisy_audio = audio + noise
+    
+    # Re-normalize
+    return normalize_audio(noisy_audio)
+
+def shift_audio(audio, shift_ms=100, sample_rate=SAMPLE_RATE):
+    """
+    Shift audio in time.
+    
+    Args:
+        audio: Audio samples
+        shift_ms: Shift in milliseconds
+        sample_rate: Sample rate
+        
+    Returns:
+        shifted_audio: Shifted audio
+    """
+    shift_samples = int(shift_ms * sample_rate / 1000)
+    shifted_audio = np.roll(audio, shift_samples)
+    
+    # If we roll right, we need to zero out the samples that roll around
+    if shift_samples > 0:
+        shifted_audio[:shift_samples] = 0
+    else:
+        shifted_audio[shift_samples:] = 0
+    
+    return shifted_audio
 
 def plot_waveform(audio, sr=SAMPLE_RATE, title="Waveform"):
     """
@@ -150,7 +201,7 @@ def plot_waveform(audio, sr=SAMPLE_RATE, title="Waveform"):
     
     Args:
         audio: Audio samples
-        sr: Sample rate (default from config.SAMPLE_RATE)
+        sr: Sample rate
         title: Plot title
     """
     plt.figure(figsize=(10, 4))
@@ -160,6 +211,7 @@ def plot_waveform(audio, sr=SAMPLE_RATE, title="Waveform"):
     plt.ylabel("Amplitude")
     plt.tight_layout()
     plt.show()
+    plt.close()  # Explicitly close the figure
 
 def plot_spectrogram(audio, sr=SAMPLE_RATE, title="Spectrogram"):
     """
@@ -167,7 +219,7 @@ def plot_spectrogram(audio, sr=SAMPLE_RATE, title="Spectrogram"):
     
     Args:
         audio: Audio samples
-        sr: Sample rate (default from config.SAMPLE_RATE)
+        sr: Sample rate
         title: Plot title
     """
     plt.figure(figsize=(10, 4))
@@ -177,6 +229,7 @@ def plot_spectrogram(audio, sr=SAMPLE_RATE, title="Spectrogram"):
     plt.title(title)
     plt.tight_layout()
     plt.show()
+    plt.close()  # Explicitly close the figure
 
 def augment_audio(audio, sr=SAMPLE_RATE):
     """
@@ -184,30 +237,137 @@ def augment_audio(audio, sr=SAMPLE_RATE):
     
     Args:
         audio: Audio samples
-        sr: Sample rate (default from config.SAMPLE_RATE)
+        sr: Sample rate
         
     Returns:
-        augmented_audio: Augmented audio
+        augmented: Augmented audio
     """
-    # Apply random time shift
-    shift = np.random.randint(-sr//10, sr//10)
-    if shift > 0:
-        augmented_audio = np.pad(audio, (0, shift), mode='constant')[shift:]
-    else:
-        augmented_audio = np.pad(audio, (-shift, 0), mode='constant')[:len(audio)]
+    # Make a copy to avoid modifying original
+    augmented = audio.copy()
+    
+    # Apply a random time shift
+    if random.random() > 0.5:
+        shift_ms = random.randint(-100, 100)  # Shift by up to 100ms in either direction
+        augmented = shift_audio(augmented, shift_ms, sr)
+    
+    # Add random noise
+    if random.random() > 0.5:
+        noise_level = random.uniform(0.001, 0.01)  # Random noise level
+        augmented = add_noise(augmented, noise_level)
     
     # Apply random pitch shift
-    n_steps = np.random.uniform(-1, 1)
-    augmented_audio = librosa.effects.pitch_shift(augmented_audio, sr=sr, n_steps=n_steps)
+    if random.random() > 0.5:
+        pitch_steps = random.uniform(-1, 1)  # Shift by up to one semitone
+        augmented = librosa.effects.pitch_shift(augmented, sr=sr, n_steps=pitch_steps)
     
-    # Apply random speed change
-    speed_factor = np.random.uniform(0.9, 1.1)
-    augmented_audio = librosa.effects.time_stretch(augmented_audio, rate=speed_factor)
+    # Apply random time stretch (but not too extreme)
+    if random.random() > 0.5:
+        rate = random.uniform(0.9, 1.1)  # Stretch rate
+        augmented = librosa.effects.time_stretch(augmented, rate=rate)
+        
+        # Make sure the length matches original
+        if len(augmented) > len(audio):
+            augmented = augmented[:len(audio)]
+        elif len(augmented) < len(audio):
+            augmented = np.pad(augmented, (0, len(audio) - len(augmented)))
     
-    # Trim or pad to original length
-    if len(augmented_audio) > len(audio):
-        augmented_audio = augmented_audio[:len(audio)]
+    # Re-normalize
+    return normalize_audio(augmented)
+
+def save_audio(audio, file_path, sr=SAMPLE_RATE):
+    """
+    Save audio samples to a file.
+    
+    Args:
+        audio: Audio samples
+        file_path: Path to save audio file
+        sr: Sample rate
+        
+    Returns:
+        file_path: Path to saved file
+    """
+    try:
+        # Create parent directory if it doesn't exist
+        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+        
+        # Save audio file using soundfile
+        sf.write(file_path, audio, sr, subtype='PCM_16')
+        
+        return file_path
+    except Exception as e:
+        print(f"Error saving audio file {file_path}: {str(e)}")
+        raise e
+
+def mix_audio(foreground, background, snr_db):
+    """
+    Mix foreground audio with background audio at a given SNR level.
+    
+    Args:
+        foreground: Foreground audio samples
+        background: Background audio samples
+        snr_db: Target Signal-to-Noise ratio in dB
+        
+    Returns:
+        mixed_audio: Mixed audio samples
+    """
+    # Ensure background is at least as long as foreground
+    if len(background) < len(foreground):
+        # Loop background if necessary
+        factor = int(np.ceil(len(foreground) / len(background)))
+        background = np.tile(background, factor)
+        
+    # Trim background to match foreground length
+    background = background[:len(foreground)]
+    
+    # Calculate foreground and background powers
+    foreground_power = np.mean(foreground**2)
+    background_power = np.mean(background**2)
+    
+    # Calculate background gain to achieve target SNR
+    if background_power > 0 and foreground_power > 0:
+        gain = np.sqrt(foreground_power / (background_power * 10**(snr_db/10)))
     else:
-        augmented_audio = np.pad(augmented_audio, (0, len(audio) - len(augmented_audio)), mode='constant')
+        gain = 0
+        
+    # Apply gain to background
+    scaled_background = background * gain
     
-    return augmented_audio
+    # Mix foreground and background
+    mixed = foreground + scaled_background
+    
+    # Normalize to prevent clipping
+    if np.max(np.abs(mixed)) > 0:
+        mixed = mixed / np.max(np.abs(mixed)) * 0.95
+        
+    return mixed
+
+def calculate_snr(signal, noise):
+    """
+    Calculate Signal-to-Noise Ratio in dB.
+    
+    Args:
+        signal: Signal audio samples
+        noise: Noise audio samples
+        
+    Returns:
+        snr_db: Signal-to-Noise Ratio in dB
+    """
+    # Ensure noise is at least as long as signal
+    if len(noise) < len(signal):
+        factor = int(np.ceil(len(signal) / len(noise)))
+        noise = np.tile(noise, factor)
+        
+    # Trim noise to match signal length
+    noise = noise[:len(signal)]
+    
+    # Calculate signal and noise powers
+    signal_power = np.mean(signal**2)
+    noise_power = np.mean(noise**2)
+    
+    # Calculate SNR
+    if noise_power > 0:
+        snr = 10 * np.log10(signal_power / noise_power)
+    else:
+        snr = float('inf')  # No noise
+        
+    return snr

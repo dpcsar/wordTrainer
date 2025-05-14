@@ -169,7 +169,7 @@ Options:
 - `--epochs`: Number of training epochs (default: 50)
 - `--batch-size`: Training batch size (default: 32)
 - `--learning-rate`: Initial learning rate (default: 0.001)
-- `--negative-samples-ratio`: Ratio of negative samples to include (default: 1.0)
+- `--negative-samples-ratio`: Ratio of negative samples to include (default: 3.0)
 
 ### 6. Test Model with gTTS Samples
 

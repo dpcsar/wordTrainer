@@ -21,6 +21,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import (ACCENTS, AGE_GROUPS, NON_KEYWORDS, SAMPLE_RATE,
                     DEFAULT_NON_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS, KEYWORDS_DIR,
                     DEFAULT_KEYWORD)
+from src.audio_utils import adjust_pitch_by_age_gender
 
 class NonKeywordGenerator:
     def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
@@ -128,26 +129,8 @@ class NonKeywordGenerator:
                 silence = AudioSegment.silent(duration=silence_ms)
                 audio = silence + audio + silence
                 
-                # Adjust pitch and speed for age and gender simulation
-                if age_group == 'child':
-                    octaves = 0.3  # higher pitch for children
-                    audio = audio._spawn(audio.raw_data, overrides={
-                        "frame_rate": int(audio.frame_rate * (2.0 ** octaves))
-                    })
-                    audio = audio.set_frame_rate(44100)
-                elif age_group == 'senior':
-                    octaves = -0.2  # lower pitch for seniors
-                    audio = audio._spawn(audio.raw_data, overrides={
-                        "frame_rate": int(audio.frame_rate * (2.0 ** octaves))
-                    })
-                    audio = audio.set_frame_rate(44100)
-                
-                if gender == 'male' and (age_group == 'adult' or age_group == 'young_adult'):
-                    octaves = -0.1  # slightly lower for adult males
-                    audio = audio._spawn(audio.raw_data, overrides={
-                        "frame_rate": int(audio.frame_rate * (2.0 ** octaves))
-                    })
-                    audio = audio.set_frame_rate(44100)
+                # Adjust pitch and speed for age and gender simulation using the utility function
+                audio = adjust_pitch_by_age_gender(audio, age_group, gender)
                 
                 # Export wav file
                 audio = audio.set_channels(1)  # mono

@@ -19,7 +19,6 @@
             "justMyCode": true,
             "args": [
                 "generate-keywords",
-                "--keyword", "activate",
             ]
         },
         {
@@ -42,7 +41,6 @@
             "justMyCode": true,
             "args": [
                 "generate-noise",
-                "--type", "all",
             ]
         },
         {

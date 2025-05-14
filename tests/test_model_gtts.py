@@ -19,6 +19,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import (MODELS_DIR, KEYWORDS_DIR, SAMPLE_RATE, DEFAULT_TEST_SAMPLES,
                     DEFAULT_KEYWORD, FEATURE_PARAMS)
 from src.audio_utils import load_audio, extract_features, plot_waveform
+from src.path_utils import normalize_model_path, find_latest_model_by_keyword
 
 class KeywordDetectionTester:
     def __init__(self, model_path, keywords_dir, sample_rate=SAMPLE_RATE):
@@ -248,6 +249,7 @@ class KeywordDetectionTester:
             
             plt.tight_layout()
             plt.show()
+            plt.close()  # Explicitly close the figure
         
         return result
     
@@ -338,74 +340,6 @@ class KeywordDetectionTester:
         
         return results
 
-def find_latest_model_by_keyword(keyword=None, models_dir=MODELS_DIR):
-    """
-    Find the latest TFLite model for a given keyword.
-    
-    Args:
-        keyword: Keyword to search for (e.g., 'activate')
-        models_dir: Directory containing models
-        
-    Returns:
-        Path to the latest model, or None if not found
-    """
-    # Check if models directory exists
-    if not os.path.isdir(models_dir):
-        print(f"Models directory not found: {models_dir}")
-        return None
-        
-    # Find TFLite models
-    tflite_files = glob.glob(os.path.join(models_dir, '*.tflite'))
-    if not tflite_files:
-        print(f"No TFLite models found in {models_dir}")
-        return None
-    
-    # If no keyword specified, return the most recent model
-    if not keyword:
-        tflite_files.sort(key=os.path.getmtime, reverse=True)
-        return tflite_files[0]
-        
-    # Try to find models with the keyword in metadata
-    metadata_path = os.path.join(models_dir, 'model_metadata.json')
-    if os.path.exists(metadata_path):
-        try:
-            with open(metadata_path, 'r') as f:
-                metadata = json.load(f)
-            
-            matching_models = []
-            
-            for model_info in metadata.get('models', []):
-                model_name = model_info.get('name')
-                model_keywords = model_info.get('keywords', [])
-                
-                # Check if keyword matches
-                if keyword.lower() in [k.lower() for k in model_keywords]:
-                    # Find matching TFLite file
-                    for tflite_file in tflite_files:
-                        if model_name in os.path.basename(tflite_file):
-                            matching_models.append((tflite_file, model_info.get('timestamp', '')))
-            
-            if matching_models:
-                # Sort by timestamp
-                matching_models.sort(key=lambda x: x[1], reverse=True)
-                print(f"Found latest model for keyword '{keyword}': {os.path.basename(matching_models[0][0])}")
-                return matching_models[0][0]
-                
-        except Exception as e:
-            print(f"Error reading metadata: {str(e)}")
-    
-    # Fallback: search by filename
-    matching_files = [f for f in tflite_files if keyword.lower() in os.path.basename(f).lower()]
-    
-    if matching_files:
-        # Sort by modification time
-        matching_files.sort(key=os.path.getmtime, reverse=True)
-        print(f"Found latest model for keyword '{keyword}': {os.path.basename(matching_files[0])}")
-        return matching_files[0]
-    
-    print(f"No TFLite model found for keyword '{keyword}'")
-    return None
-
 def main():
     parser = argparse.ArgumentParser(description='Test keyword detection model using gTTS samples')
     parser.add_argument('--model', type=str,
@@ -442,10 +376,7 @@ def main():
     # Get model path - either from --model parameter or by finding latest model for keyword
     model_path = None
     if args.model:
-        if not os.path.isabs(args.model):
-            model_path = os.path.abspath(os.path.join(script_dir, '..', args.model))
-        else:
-            model_path = args.model
+        model_path = normalize_model_path(args.model, script_dir)
     elif args.keyword:
         model_path = find_latest_model_by_keyword(args.keyword)
         if not model_path:
