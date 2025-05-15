@@ -60,21 +60,66 @@ DEFAULT_SHOW_PLOTS = True
 DEFAULT_AUDIO_DURATION = 2  # seconds
 DEFAULT_BUFFER_DURATION = 5  # seconds
 
-# Available accents in gTTS with detailed information
-ACCENTS = [
-    {"lang": "en", "tld": "com", "name": "US English", "gender": "male"},
-    {"lang": "en", "tld": "com", "name": "US English", "gender": "female"},
-    {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "male"},
-    {"lang": "en", "tld": "co.uk", "name": "British English", "gender": "female"},
-    {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "male"},
-    {"lang": "en", "tld": "com.au", "name": "Australian English", "gender": "female"},
-    {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "male"},
-    {"lang": "en", "tld": "co.in", "name": "Indian English", "gender": "female"},
-    {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "male"},
-    {"lang": "en", "tld": "ie", "name": "Irish English", "gender": "female"},
-    {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "male"},
-    {"lang": "en", "tld": "ca", "name": "Canadian English", "gender": "female"},
+# Google Cloud TTS Configuration
+# English voices mapping with gender and accent information
+GOOGLE_TTS_VOICES = [
+    # US English voices - male (top 4)
+    {"name": "en-US-Neural2-D", "gender": "male", "accent": "us", "accent_name": "US English"},  # Best male US voice
+    {"name": "en-US-Neural2-J", "gender": "male", "accent": "us", "accent_name": "US English"},  # Second best
+    {"name": "en-US-Neural2-A", "gender": "male", "accent": "us", "accent_name": "US English"},  # Third best
+    {"name": "en-US-Wavenet-D", "gender": "male", "accent": "us", "accent_name": "US English"},  # Fourth best
+    
+    # US English voices - female (top 4)
+    {"name": "en-US-Neural2-F", "gender": "female", "accent": "us", "accent_name": "US English"},  # Best female US voice
+    {"name": "en-US-Neural2-E", "gender": "female", "accent": "us", "accent_name": "US English"},  # Second best
+    {"name": "en-US-Neural2-C", "gender": "female", "accent": "us", "accent_name": "US English"},  # Third best
+    {"name": "en-US-Wavenet-C", "gender": "female", "accent": "us", "accent_name": "US English"},  # Fourth best
+    
+    # UK English voices - male (top 4)
+    {"name": "en-GB-Neural2-B", "gender": "male", "accent": "uk", "accent_name": "British English"},  # Best male UK voice
+    {"name": "en-GB-Neural2-D", "gender": "male", "accent": "uk", "accent_name": "British English"},  # Second best
+    
+    # UK English voices - female (top 4)
+    {"name": "en-GB-Neural2-A", "gender": "female", "accent": "uk", "accent_name": "British English"},  # Best female UK voice
+    {"name": "en-GB-Neural2-C", "gender": "female", "accent": "uk", "accent_name": "British English"},  # Second best
+    
+    # Australian English voices - male (top 2)
+    {"name": "en-AU-Neural2-B", "gender": "male", "accent": "au", "accent_name": "Australian English"},  # Best male AU voice
+    {"name": "en-AU-Neural2-D", "gender": "male", "accent": "au", "accent_name": "Australian English"},  # Second best
+    
+    # Australian English voices - female (top 2)
+    {"name": "en-AU-Neural2-C", "gender": "female", "accent": "au", "accent_name": "Australian English"},  # Best female AU voice
+    {"name": "en-AU-Neural2-A", "gender": "female", "accent": "au", "accent_name": "Australian English"},  # Second best
+    
+    # Indian English voices - male (top 2)
+    {"name": "en-IN-Neural2-B", "gender": "male", "accent": "in", "accent_name": "Indian English"},  # Best male IN voice
+    {"name": "en-IN-Neural2-C", "gender": "male", "accent": "in", "accent_name": "Indian English"},  # Second best
+    
+    # Indian English voices - female (top 2)
+    {"name": "en-IN-Neural2-A", "gender": "female", "accent": "in", "accent_name": "Indian English"},  # Best female IN voice
+    {"name": "en-IN-Neural2-D", "gender": "female", "accent": "in", "accent_name": "Indian English"},  # Second best
 ]
+
+# Speech synthesis configuration
+GOOGLE_TTS_AUDIO_CONFIG = {
+    "audio_encoding": "LINEAR16",  # WAV format
+    "speaking_rate": 1.0,  # Normal speed
+    "pitch": 0.0,  # Default pitch, will be adjusted by age/gender
+    "volume_gain_db": 0.0,  # Normal volume
+    "sample_rate_hertz": 16000,  # Match project's sample rate
+    "effects_profile_id": ["headphone-class-device"]  # Better audio quality
+}
+
+# For backward compatibility, create ACCENTS from GOOGLE_TTS_VOICES
+# This allows existing code to continue working with minimal changes
+ACCENTS = []
+for voice in GOOGLE_TTS_VOICES:
+    ACCENTS.append({
+        "voice_name": voice["name"],
+        "accent": voice["accent"],  
+        "accent_name": voice["accent_name"],
+        "gender": voice["gender"]
+    })
 
 # Default SNR range for mixing
 DEFAULT_SNR_RANGE = (-5, 20)

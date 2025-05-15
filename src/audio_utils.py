@@ -99,14 +99,13 @@ def resample_audio(audio, orig_sr, target_sr):
     
     return resampled
 
-def adjust_pitch_by_age_gender(audio, age_group, gender, reference_frame_rate=44100):
+def adjust_pitch_by_age(audio, age_group, reference_frame_rate=44100):
     """
-    Adjust audio pitch based on age group and gender.
+    Adjust audio pitch based on age group.
     
     Args:
         audio: AudioSegment object to modify
         age_group: Age group ('child', 'young_adult', 'adult', 'senior')
-        gender: Gender ('male', 'female')
         reference_frame_rate: Reference frame rate to reset to after modification
     
     Returns:
@@ -114,23 +113,15 @@ def adjust_pitch_by_age_gender(audio, age_group, gender, reference_frame_rate=44
     """
     octaves = 0  # Default: no change
     
-    # First adjust by age group
+    # Adjust pitch based on age group
     if age_group == 'child':
-        if gender == 'female':
-            octaves = 0.3  # higher pitch for female children
-        else:
-            octaves = 0.1  # not as high for male children
+        octaves = 0.2  # higher pitch for children
+    elif age_group == 'young_adult':
+        octaves = 0.0  # no change for young adults
+    elif age_group == 'adult':
+        octaves = -0.1  # slightly lower for adults
     elif age_group == 'senior':
-        if gender == 'female':
-            octaves = -0.2  # lower pitch for senior females
-        else:
-            octaves = -0.5  # even lower for senior males
-    # Then adjust by gender for adults and young adults
-    elif gender == 'male':
-        if age_group == 'adult':
-            octaves = -0.4  # much lower pitch for adult males
-        elif age_group == 'young_adult':
-            octaves = -0.35  # lower pitch for young adult males
+        octaves = -0.3  # lower pitch for seniors
     
     # Only modify if there's a pitch change
     if octaves != 0:
@@ -154,6 +145,15 @@ def normalize_audio(audio):
     if np.max(np.abs(audio)) > 0:
         return audio / np.max(np.abs(audio))
     return audio
+
+# Keep this alias for backward compatibility
+# It calls the new function, ignoring the gender parameter
+def adjust_pitch_by_age_gender(audio, age_group, gender=None, reference_frame_rate=44100):
+    """
+    Legacy function that calls adjust_pitch_by_age, ignoring the gender parameter.
+    Kept for backward compatibility.
+    """
+    return adjust_pitch_by_age(audio, age_group, reference_frame_rate)
 
 def add_noise(audio, noise_level=0.005):
     """

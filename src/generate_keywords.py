@@ -1,5 +1,5 @@
 """
-Generate keyword speech samples using gTTS with different accents and variations.
+Generate keyword speech samples using Google Cloud Text-to-Speech with different voices and variations.
 """
 
 import os
@@ -8,7 +8,8 @@ import argparse
 import random
 import numpy as np
 import time
-from gtts import gTTS
+import io
+from google.cloud import texttospeech
 from pydub import AudioSegment
 import uuid
 import json
@@ -18,8 +19,9 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import from config
 from config import (ACCENTS, AGE_GROUPS, SAMPLE_RATE, DEFAULT_KEYWORD_SAMPLES,
-                    DEFAULT_SILENCE_MS, KEYWORDS_DIR, DEFAULT_KEYWORD)
-from src.audio_utils import adjust_pitch_by_age_gender
+                    DEFAULT_SILENCE_MS, KEYWORDS_DIR, DEFAULT_KEYWORD,
+                    GOOGLE_TTS_AUDIO_CONFIG)
+from src.audio_utils import adjust_pitch_by_age
 
 class KeywordGenerator:
     def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
@@ -90,17 +92,8 @@ class KeywordGenerator:
             # Generate a unique ID for this sample
             sample_id = str(uuid.uuid4())[:8]
             
-            # Extract TLD for filename (e.g., "com" becomes "us", "co.uk" becomes "uk")
-            tld = accent_info["tld"]
-            # Convert TLD to a short country code
-            if tld == "com":
-                country_code = "us"
-            elif tld.startswith("co."):
-                country_code = tld.split(".")[-1]
-            elif tld.startswith("com."):
-                country_code = tld.split(".")[-1]
-            else:
-                country_code = tld
+            # Get accent code for filename (e.g., "us", "uk", "au")
+            country_code = accent_info["accent"]
                 
             # Generate filename
             filename = f"{keyword}_{country_code}_{age_group}_{gender}_{sample_id}.wav"
@@ -108,35 +101,60 @@ class KeywordGenerator:
             
             # Generate TTS audio
             try:
-                tts = gTTS(text=keyword, lang=accent_info["lang"], tld=accent_info["tld"])
-                mp3_path = file_path.replace('.wav', '.mp3')
-                tts.save(mp3_path)
+                # Initialize Google Cloud TTS client
+                client = texttospeech.TextToSpeechClient()
                 
-                # Convert mp3 to wav and apply transformations
-                audio = AudioSegment.from_mp3(mp3_path)
+                # Set the text input
+                synthesis_input = texttospeech.SynthesisInput(text=keyword)
+                
+                # Select the voice based on accent info
+                voice = texttospeech.VoiceSelectionParams(
+                    language_code=accent_info["voice_name"].split("-")[0]+"-"+accent_info["voice_name"].split("-")[1],
+                    name=accent_info["voice_name"],
+                    ssml_gender=(texttospeech.SsmlVoiceGender.MALE if accent_info["gender"] == "male" 
+                               else texttospeech.SsmlVoiceGender.FEMALE)
+                )
+                
+                # Configure audio output using settings from config
+                audio_config = texttospeech.AudioConfig(
+                    audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+                    sample_rate_hertz=self.sample_rate,
+                    speaking_rate=GOOGLE_TTS_AUDIO_CONFIG["speaking_rate"],
+                    pitch=GOOGLE_TTS_AUDIO_CONFIG["pitch"],
+                    volume_gain_db=GOOGLE_TTS_AUDIO_CONFIG["volume_gain_db"],
+                    effects_profile_id=GOOGLE_TTS_AUDIO_CONFIG["effects_profile_id"]
+                )
+                
+                # Generate speech
+                response = client.synthesize_speech(
+                    input=synthesis_input,
+                    voice=voice,
+                    audio_config=audio_config
+                )
+                
+                # Directly create AudioSegment from bytes
+                audio = AudioSegment.from_wav(io.BytesIO(response.audio_content))
                 
                 # Add silence at beginning and end
                 silence = AudioSegment.silent(duration=silence_ms)
                 audio = silence + audio + silence
                 
-                # Adjust pitch and speed for age and gender simulation using the utility function
-                audio = adjust_pitch_by_age_gender(audio, age_group, gender)
+                # Adjust pitch based on age group only
+                audio = adjust_pitch_by_age(audio, age_group)
                 
                 # Export wav file
                 audio = audio.set_channels(1)  # mono
                 audio = audio.set_frame_rate(self.sample_rate)  # resample
                 audio.export(file_path, format="wav")
                 
-                # Remove the temporary mp3 file
-                os.remove(mp3_path)
-                
                 # Add metadata
                 sample_metadata = {
                     'id': sample_id,
                     'file': filename,
                     'keyword': keyword,
-                    'accent': accent_info["tld"],
-                    'accent_name': accent_info["name"],
+                    'accent': accent_info["accent"],
+                    'accent_name': accent_info["accent_name"],
+                    'voice_name': accent_info["voice_name"],
                     'age_group': age_group,
                     'gender': gender,
                     'duration_ms': len(audio),
@@ -160,7 +178,7 @@ class KeywordGenerator:
         print(f"Generated {samples_needed} additional samples for keyword '{keyword}', total now: {self.metadata[keyword]['count']}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate keyword speech samples using gTTS')
+    parser = argparse.ArgumentParser(description='Generate keyword speech samples using Google Cloud TTS')
     parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to generate samples for (default: {DEFAULT_KEYWORD})')
     parser.add_argument('--samples', type=int, default=DEFAULT_KEYWORD_SAMPLES, 
                         help=f'Total number of samples desired (will only generate what is needed to reach this number) (default: {DEFAULT_KEYWORD_SAMPLES})')

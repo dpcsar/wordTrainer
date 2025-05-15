@@ -76,7 +76,7 @@ Examples:
   Train model:
     python main.py train --keywords "activate" "shutdown" --epochs 50
 
-  Test model with gTTS samples:
+  Test model with TTS samples:
     python main.py test-gtts --model "models/keyword_detection_activate.tflite" --dir "data/keywords/activate"
 
   Test model with microphone:
@@ -88,12 +88,12 @@ Examples:
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
     # Define simple subparsers for each command without duplicating all arguments
-    subparsers.add_parser('generate-keywords', help='Generate keyword samples using gTTS')
+    subparsers.add_parser('generate-keywords', help='Generate keyword samples using Google Cloud TTS')
     subparsers.add_parser('generate-noise', help='Generate background noise samples')
-    subparsers.add_parser('generate-non-keywords', help='Generate non-keyword samples for training')
+    subparsers.add_parser('generate-non-keywords', help='Generate non-keyword samples using Google Cloud TTS')
     subparsers.add_parser('mix-audio', help='Mix keyword and non-keyword samples with background noise')
     subparsers.add_parser('train', help='Train keyword detection model')
-    subparsers.add_parser('test-gtts', help='Test model using gTTS samples')
+    subparsers.add_parser('test-gtts', help='Test model using TTS samples')
     subparsers.add_parser('test-non-keywords', help='Test model using non-keyword samples')
     subparsers.add_parser('test-mic', help='Test model using microphone input')
     

@@ -1,6 +1,6 @@
 numpy
 tensorflow-cpu
-gTTS
+google-cloud-texttospeech
 pydub
 librosa
 sounddevice
