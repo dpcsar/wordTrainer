@@ -242,7 +242,8 @@ class BackgroundNoiseGenerator:
         print(f"Generating {num_samples} {noise_type} noise samples")
         
         # Create noise type directory if it doesn't exist
-        noise_dir = os.path.join(self.output_dir, noise_type)
+        sanitized_noise_type = noise_type.replace(' ', '_')  # Replace spaces with underscores in directory name
+        noise_dir = os.path.join(self.output_dir, sanitized_noise_type)
         os.makedirs(noise_dir, exist_ok=True)
         
         # Initialize noise_type metadata if not exists
@@ -263,6 +264,8 @@ class BackgroundNoiseGenerator:
             # Generate filename
             filename = f"{noise_type}_{sample_id}.wav"
             file_path = os.path.join(noise_dir, filename)
+            # Replace spaces with underscores in the path
+            file_path = file_path.replace(' ', '_')
             
             # Generate noise based on type
             if noise_type == 'propeller':
@@ -295,11 +298,15 @@ class BackgroundNoiseGenerator:
 def main():
     parser = argparse.ArgumentParser(description='Generate background noise samples for aircraft environments')
     parser.add_argument('--type', type=str, choices=['propeller', 'jet', 'cockpit', 'all'], 
-                        default='all', help='Type of noise to generate')
-    parser.add_argument('--samples', type=int, default=DEFAULT_BACKGROUND_SAMPLES, help='Number of samples to generate')
-    parser.add_argument('--output-dir', type=str, default=BACKGROUNDS_DIR, help='Output directory')
-    parser.add_argument('--min-duration', type=float, default=DEFAULT_MIN_DURATION, help='Minimum duration in seconds')
-    parser.add_argument('--max-duration', type=float, default=DEFAULT_MAX_DURATION, help='Maximum duration in seconds')
+                        default='all', help='Type of aircraft noise to generate (default: all)')
+    parser.add_argument('--samples', type=int, default=DEFAULT_BACKGROUND_SAMPLES, 
+                        help=f'Number of background noise samples to generate per type (default: {DEFAULT_BACKGROUND_SAMPLES})')
+    parser.add_argument('--output-dir', type=str, default=BACKGROUNDS_DIR, 
+                        help=f'Output directory for background noise samples (default: {BACKGROUNDS_DIR})')
+    parser.add_argument('--min-duration', type=float, default=DEFAULT_MIN_DURATION, 
+                        help=f'Minimum duration of noise samples in seconds (default: {DEFAULT_MIN_DURATION}s)')
+    parser.add_argument('--max-duration', type=float, default=DEFAULT_MAX_DURATION, 
+                        help=f'Maximum duration of noise samples in seconds (default: {DEFAULT_MAX_DURATION}s)')
     args = parser.parse_args()
     
     generator = BackgroundNoiseGenerator(args.output_dir)

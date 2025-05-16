@@ -6,7 +6,7 @@ A complete toolkit for training and testing keyword detection models for Android
 
 This project provides tools to:
 
-1. Generate keyword samples using Google Text-to-Speech (gTTS) with varying accents, ages, and genders
+1. Generate keyword samples using Google Text-to-Speech (TTS) with varying accents, ages, and genders
 2. Generate non-keyword samples as negative training examples
 3. Synthesize aircraft cockpit background noise (propeller aircraft, jet aircraft, cockpit ambience)
 4. Mix keywords with background noise at various Signal-to-Noise Ratios (SNR)
@@ -20,7 +20,7 @@ This project provides tools to:
 wordTrainer/
 ├── src/               # Python source code
 │   ├── audio_utils.py                # Audio processing utility functions
-│   ├── generate_keywords.py          # Generate keyword samples using gTTS
+│   ├── generate_keywords.py          # Generate keyword samples using TTS
 │   ├── generate_non_keywords.py      # Generate non-keyword samples for negative training
 │   ├── generate_background_noise.py  # Generate cockpit background noise
 │   ├── mix_audio_samples.py          # Mix keywords with noise at different SNRs
@@ -44,7 +44,7 @@ wordTrainer/
 │
 ├── tests/             # Test scripts
 │   ├── test_audio_utils.py           # Test audio utility functions
-│   ├── test_model_gtts.py            # Test model using gTTS samples
+│   ├── test_model_tts.py            # Test model using TTS samples
 │   ├── test_model_mic.py             # Test model using microphone input
 │   └── test_model_non_keywords.py    # Test non-keyword generation
 │
@@ -64,9 +64,11 @@ wordTrainer/
 
 ### Prerequisites
 
-- Python 3.8+ with pip
+- Python 3.12.x with pip
 - VS Code with Python extension
-- Internet connection (for gTTS)
+- Google Cloud account and API key setup (for Google Cloud Text-to-Speech)
+- FFmpeg for audio processing (required by pydub)
+- Internet connection (for Google TTS API access)
 - Audio output and input devices for testing
 
 ### Installation
@@ -77,12 +79,51 @@ wordTrainer/
    cd wordTrainer
    ```
 
-2. Install required Python packages:
+2. Install FFmpeg and PortAudio (required for audio processing and microphone access):
+   
+   For Ubuntu/Debian:
+   ```bash
+   sudo apt update
+   sudo apt install ffmpeg portaudio19-dev
+   ```
+   
+   For macOS (using Homebrew):
+   ```bash
+   brew install ffmpeg portaudio
+   ```
+   
+   For Windows:
+   - FFmpeg: Download from https://ffmpeg.org/download.html and add to PATH environment variable
+   - PortAudio: Download from http://www.portaudio.com/download.html or install via package manager
+
+3. Install required Python packages:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Open the project in VS Code:
+   The requirements.txt file includes the following dependencies:
+   - numpy - For numerical operations and array handling
+   - tensorflow-cpu - Machine learning framework (use tensorflow-gpu for GPU support)
+   - google-cloud-texttospeech - Google's Text-to-Speech API client
+   - pydub - Audio file manipulation library
+   - librosa - Audio analysis library
+   - sounddevice - For recording and playing sound
+   - soundfile - For reading and writing sound files
+   - matplotlib - For creating visualizations
+   - scipy - Scientific computing library
+   - tqdm - Progress bar utility
+   - seaborn - Statistical data visualization
+   - scikit-learn - For machine learning utilities and metrics
+
+   Note: Specific version requirements are specified in requirements.txt to ensure compatibility.
+
+4. Set up Google Cloud Text-to-Speech:
+   ```bash
+   python setup_google_tts.py
+   ```
+   Follow the instructions in GOOGLE_TTS_SETUP.md for detailed configuration steps.
+
+5. Open the project in VS Code:
    ```bash
    code .
    ```
@@ -171,16 +212,16 @@ Options:
 - `--learning-rate`: Initial learning rate (default: 0.001)
 - `--negative-samples-ratio`: Ratio of negative samples to include (default: 3.0)
 
-### 6. Test Model with gTTS Samples
+### 6. Test Model with TTS Samples
 
-Test the trained model using pre-recorded gTTS samples:
+Test the trained model using pre-recorded TTS samples:
 
 ```bash
-python tests/test_model_gtts.py --model "models/keyword_detection_<your_model_xxx>.tflite" --dir "data/keywords/activate"
+python tests/test_model_tts.py --model "models/keyword_detection_<your_model_xxx>.tflite" --dir "data/keywords/activate"
 ```
 
 Options:
-- `--model`: Path to trained model (.h5 or .tflite)
+- `--model`: Path to trained model (.keras, or .tflite)
 - `--file`: Path to a single audio file to test
 - `--dir`: Directory containing audio files to test
 - `--samples`: Maximum number of samples to test in batch mode (default: 10)
@@ -194,7 +235,7 @@ python tests/test_model_mic.py --model "models/keyword_detection_<your_model_xxx
 ```
 
 Options:
-- `--model`: Path to trained model (.h5 or .tflite)
+- `--model`: Path to trained model (.keras, or .tflite)
 - `--threshold`: Detection threshold (default: 0.5)
 - `--device`: Audio device index (optional)
 - `--no-viz`: Disable visualization
@@ -204,13 +245,14 @@ Options:
 The trained TFLite models can be integrated into Android applications. Use the prepare_for_android.py script to export your model:
 
 ```bash
-python src/prepare_for_android.py --model "models/keyword_detection_<your_model_xxx>.h5" --output "models/android_ready" --optimize
+python src/prepare_for_android.py --model "models/keyword_detection_<your_model_xxx>.tflite" --output "models/android_ready"
 ```
 
 Options:
-- `--model`: Path to the trained model (.h5)
-- `--output`: Output directory for Android-ready files
-- `--optimize`: Apply additional optimization for mobile deployment (optional)
+- `--model`: Path to the trained model (.tflite only)
+- `--output-dir`: Output directory for Android-ready files
+- `--package-name`: Android package name for template generation (default: com.example.keyworddetection)
+- `--no-template`: Skip creation of Android integration template project
 
 Key integration steps:
 1. Copy the exported .tflite model file to your Android project's assets directory
@@ -243,6 +285,125 @@ Run the test suite to verify functionality:
 ./run_tests.sh
 ```
 
+## Troubleshooting
+
+### Common Issues
+
+#### OSError: PortAudio library not found
+
+If you see this error when running `test_model_mic.py` or any script that uses the microphone, it means the PortAudio library is missing from your system. Install it using:
+
+- Ubuntu/Debian: `sudo apt install portaudio19-dev`
+- macOS: `brew install portaudio`
+- Windows: Install from http://www.portaudio.com/download.html
+
+After installing the library, reinstall the sounddevice package:
+```bash
+pip install --upgrade --force-reinstall sounddevice
+```
+
+#### No audio devices found
+
+If the script cannot detect your microphone:
+1. Make sure your microphone is connected and working
+2. Verify you have permission to access audio devices
+3. If running in a virtual machine, ensure audio passthrough is enabled
+4. If running in a container, ensure audio device access is configured
+
+##### For WSL (Windows Subsystem for Linux) Users
+
+WSL2 can access audio devices through different methods:
+
+###### Option 1: Using Native WSLg Audio (Windows 11+)
+
+If your WSL is running on Windows 11 or newer builds of Windows 10, it may have WSLg (Windows Subsystem for Linux GUI) which includes PulseAudio integration:
+
+1. Check if you already have WSLg configured:
+   ```bash
+   echo $DISPLAY $WAYLAND_DISPLAY $PULSE_SERVER $XDG_RUNTIME_DIR
+   ```
+   If these variables are set (especially `WAYLAND_DISPLAY` and `PULSE_SERVER`), you have WSLg integration.
+
+2. Install PulseAudio in WSL (if not already installed):
+   ```bash
+   sudo apt update
+   sudo apt install pulseaudio
+   ```
+
+3. No Windows-side setup needed - audio should work automatically.
+
+   Troubleshooting WSLg audio:
+   - Ensure your Windows microphone is enabled and working
+   - Try restarting the WSL instance: `wsl.exe --shutdown` from PowerShell, then restart WSL
+   - Install PulseAudio tools in WSL: `sudo apt install pulseaudio-utils`
+   - Check audio devices: `pactl list sources`
+   - Ensure microphone permissions are granted to WSL in Windows Security settings
+   
+   Important: Check your PULSE_SERVER environment variable:
+   ```bash
+   echo $PULSE_SERVER
+   ```
+   
+   For best results with WSLg audio, it should be set to:
+   ```
+   PULSE_SERVER=unix:/mnt/wslg/PulseServer
+   ```
+   
+   If it's set to a TCP address instead (like `tcp:10.255.255.254`), modify your `~/.bashrc` or `~/.zshrc` with:
+   ```bash
+   export PULSE_SERVER=unix:/mnt/wslg/PulseServer
+   ```
+   Then run `source ~/.zshrc` and test audio again.
+
+###### Option 2: Manual PulseAudio Setup
+
+If Option 1 doesn't work, you'll need to set up PulseAudio manually:
+
+1. Install PulseAudio in WSL:
+   ```bash
+   sudo apt update
+   sudo apt install pulseaudio
+   ```
+
+2. Install and configure PulseAudio on Windows:
+   - Method A: Use WSL-PulseAudio
+     - Download and install [WSL-PulseAudio](https://github.com/agolla/WSL-PulseAudio)
+     - This automates the entire setup process
+   
+   - Method B: Manual setup
+     - Download PulseAudio for Windows from https://www.freedesktop.org/wiki/Software/PulseAudio/Ports/Windows/
+     - Add these lines to the end of your `%APPDATA%\PulseAudio\etc\pulse\default.pa` file:
+       ```
+       load-module module-native-protocol-tcp auth-anonymous=1
+       load-module module-esound-protocol-tcp auth-anonymous=1
+       load-module module-waveout sink_name=output source_name=input record=1
+       ```
+
+3. Start PulseAudio on Windows (before starting WSL):
+   - Run `pulseaudio.exe` with the `-D` flag
+
+4. In WSL, configure the PULSE_SERVER environment variable:
+   ```bash
+   export PULSE_SERVER=tcp:$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}')
+   ```
+   Add this line to your `~/.bashrc` or `~/.zshrc` to make it permanent.
+
+5. Verify your setup and troubleshoot any issues:
+   ```bash
+   # Basic device check
+   python tests/check_audio_devices.py
+   
+   # For WSL-specific troubleshooting with interactive fixes
+   python tests/fix_wsl_audio.py
+   ```
+
+#### TensorFlow CPU/GPU compatibility issues
+
+If you encounter TensorFlow compatibility issues:
+1. Check that your installed TensorFlow version matches your system architecture
+2. For GPU support, ensure CUDA and cuDNN are properly installed
+3. Consider using a TensorFlow version that matches your CUDA version
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -252,3 +413,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Google Text-to-Speech API for synthetic speech generation
 - TensorFlow and TensorFlow Lite
 - Python audio libraries: librosa, pydub, sounddevice
+- PortAudio for cross-platform audio I/O

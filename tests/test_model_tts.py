@@ -1,5 +1,5 @@
 """
-Test keyword detection model using gTTS samples.
+Test keyword detection model using samples.
 """
 
 import os
@@ -7,6 +7,7 @@ import argparse
 import numpy as np
 import json
 import tensorflow as tf
+from ai_edge_litert.interpreter import Interpreter
 import librosa
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -45,10 +46,12 @@ class KeywordDetectionTester:
             
             # Find this specific model in the metadata
             model_name = os.path.basename(model_path).split('.')[0]
+            # Handle optimized models by removing the _optimized suffix
+            base_model_name = model_name.replace('_optimized', '')
             model_info = None
             
             for model in self.model_metadata['models']:
-                if model['name'] == model_name:
+                if model['name'] == model_name or model['name'] == base_model_name:
                     model_info = model
                     break
             
@@ -58,7 +61,9 @@ class KeywordDetectionTester:
                 self.class_names = ['negative'] + self.keywords
                 print(f"Model keywords: {self.keywords}")
             else:
-                raise ValueError(f"Model {model_name} not found in metadata")
+                # More descriptive error message
+                base_name = model_name.replace('_optimized', '')
+                raise ValueError(f"Model {model_name} not found in metadata. Available models: {[model['name'] for model in self.model_metadata['models']]}")
         else:
             print(f"Warning: Model metadata not found at {metadata_path}")
             self.keywords = [DEFAULT_KEYWORD]  # Default to the configured keyword
@@ -89,7 +94,7 @@ class KeywordDetectionTester:
             model_path: Path to .tflite model file
         """
         self.model_type = 'tflite'
-        self.interpreter = tf.lite.Interpreter(model_path=model_path)
+        self.interpreter = Interpreter(model_path=model_path)
         self.interpreter.allocate_tensors()
         
         # Get input and output details
@@ -98,7 +103,16 @@ class KeywordDetectionTester:
         
         print(f"Loaded TFLite model from {model_path}")
         print(f"Input shape: {self.input_details[0]['shape']}")
+        print(f"Input type: {self.input_details[0]['dtype']}")
         print(f"Output shape: {self.output_details[0]['shape']}")
+        
+        # Check if the model is quantized
+        if self.input_details[0]['dtype'] == np.int8:
+            print("This is a quantized INT8 model")
+            if 'quantization_parameters' in self.input_details[0]:
+                scale = self.input_details[0]['quantization_parameters']['scales'][0]
+                zero_point = self.input_details[0]['quantization_parameters']['zero_points'][0]
+                print(f"Input quantization scale: {scale}, zero point: {zero_point}")
         
         # Number of classes is the last dimension of output shape
         num_classes = self.output_details[0]['shape'][-1]
@@ -178,8 +192,32 @@ class KeywordDetectionTester:
         else:  # TFLite
             # Ensure features have correct shape for input
             input_shape = self.input_details[0]['shape']
+            input_type = self.input_details[0]['dtype']
+            is_quantized = input_type == np.int8
+            
             if input_shape[0] == 1:  # Batch size of 1
-                features = np.expand_dims(features, axis=0).astype(np.float32)
+                features = np.expand_dims(features, axis=0)
+            
+            # For quantized models, convert float values to int8
+            if is_quantized:
+                print("Detected quantized INT8 model, converting input to INT8")
+                input_details = self.input_details[0]
+                if 'quantization_parameters' in input_details:
+                    quantization_params = input_details['quantization_parameters']
+                    scale = quantization_params['scales'][0]
+                    zero_point = quantization_params['zero_points'][0]
+                    
+                    # Convert float to int8 using scale and zero point
+                    features = (features / scale + zero_point).astype(np.int8)
+                    print(f"Quantized input range: {features.min()} to {features.max()}")
+                else:
+                    # If quantization parameters are not available, use a simpler estimation
+                    # based on the typical range of MFCC features
+                    print("Warning: Quantization parameters not found, using estimated scale")
+                    features = np.clip(features * 10, -128, 127).astype(np.int8)
+            else:
+                # For float models, use float32
+                features = features.astype(np.float32)
             
             # Set input tensor
             self.interpreter.set_tensor(self.input_details[0]['index'], features)
@@ -189,6 +227,14 @@ class KeywordDetectionTester:
             
             # Get output tensor
             predictions = self.interpreter.get_tensor(self.output_details[0]['index'])
+            
+            # If output is quantized, dequantize it
+            if len(self.output_details[0]['shape']) > 0 and 'quantization_parameters' in self.output_details[0]:
+                quantization_params = self.output_details[0]['quantization_parameters']
+                if quantization_params['scales'] and quantization_params['zero_points']:
+                    scale = quantization_params['scales'][0]
+                    zero_point = quantization_params['zero_points'][0]
+                    predictions = scale * (predictions.astype(np.float32) - zero_point)
             
             return predictions[0]
     
@@ -341,21 +387,21 @@ class KeywordDetectionTester:
         return results
 
 def main():
-    parser = argparse.ArgumentParser(description='Test keyword detection model using gTTS samples')
+    parser = argparse.ArgumentParser(description='Test keyword detection model using pre-recorded audio samples')
     parser.add_argument('--model', type=str,
-                        help='Path to trained model (.h5 or .tflite)')
+                        help='Path to trained model file (.keras or .tflite format)')
     parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD,
-                        help=f'Keyword to find the latest model for (e.g., "{DEFAULT_KEYWORD}")')
+                        help=f'Keyword to find the latest model for (default: "{DEFAULT_KEYWORD}")')
     parser.add_argument('--file', type=str, 
-                        help='Path to a single audio file to test')
+                        help='Path to a single audio file to test (WAV format)')
     parser.add_argument('--dir', type=str, 
-                        help='Directory containing audio files to test')
+                        help='Directory containing multiple audio files to test')
     parser.add_argument('--samples', type=int, default=DEFAULT_TEST_SAMPLES, 
                         help=f'Maximum number of samples to test in batch mode (default: {DEFAULT_TEST_SAMPLES})')
     parser.add_argument('--keywords-dir', type=str, default=KEYWORDS_DIR, 
-                        help='Directory containing keyword samples')
+                        help=f'Directory containing keyword samples (default: {KEYWORDS_DIR})')
     parser.add_argument('--list-models', action='store_true',
-                        help='List available models and exit')
+                        help='List all available trained models and exit')
     args = parser.parse_args()
     
     # Convert relative paths to absolute paths if needed
@@ -403,12 +449,27 @@ def main():
             print(f"Using keyword from model metadata: '{keyword}'")
         
         if keyword:
-            keyword_dir = os.path.join(args.keywords_dir, keyword)
-            if os.path.exists(keyword_dir):
+            # Try different formats of keyword directory (with spaces or underscores)
+            keyword_formats = [keyword, keyword.replace(' ', '_')]
+            keyword_dir = None
+            
+            for kw_format in keyword_formats:
+                test_dir = os.path.join(args.keywords_dir, kw_format)
+                if os.path.exists(test_dir):
+                    keyword_dir = test_dir
+                    break
+            
+            if keyword_dir:
                 print(f"Using keyword directory: {keyword_dir}")
                 tester.batch_test(keyword_dir, args.samples)
             else:
-                print(f"Error: Keyword directory not found: {keyword_dir}")
+                print(f"Error: Keyword directory not found. Tried: {[os.path.join(args.keywords_dir, kf) for kf in keyword_formats]}")
+                # List available directories 
+                print(f"Available directories in {args.keywords_dir}:")
+                if os.path.exists(args.keywords_dir):
+                    for item in os.listdir(args.keywords_dir):
+                        if os.path.isdir(os.path.join(args.keywords_dir, item)):
+                            print(f"  - {item}")
         else:
             print("Error: Either --file, --dir must be specified, or model must have keywords defined")
 

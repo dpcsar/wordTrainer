@@ -117,7 +117,9 @@ class KeywordDetectionModelTrainer:
             
             keyword_samples = mixed_metadata[keyword]['samples']
             for sample in keyword_samples:
-                sample_path = os.path.join(mixed_data_dir, keyword, sample['file'])
+                # Sanitize keyword directory name
+                sanitized_keyword = keyword.replace(' ', '_')
+                sample_path = os.path.join(mixed_data_dir, sanitized_keyword, sample['file'])
                 if os.path.exists(sample_path):
                     positive_samples.append({
                         'path': sample_path,
@@ -423,8 +425,10 @@ class KeywordDetectionModelTrainer:
         
         # Save model
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_name = f"keyword_detection_{'-'.join(keywords)}_{timestamp}"
-        model_path = os.path.join(self.model_dir, f"{model_name}.h5")
+        # Replace spaces with underscores in keywords for filename
+        sanitized_keywords = [kw.replace(' ', '_') for kw in keywords]
+        model_name = f"keyword_detection_{'-'.join(sanitized_keywords)}_{timestamp}"
+        model_path = os.path.join(self.model_dir, f"{model_name}.keras")
         model.save(model_path)
         
         # Save TFLite model
@@ -451,8 +455,9 @@ class KeywordDetectionModelTrainer:
                 'learning_rate': learning_rate,
             },
             'timestamp': timestamp,
-            'h5_path': model_path,
+            'keras_path': model_path,
             'tflite_path': os.path.join(self.model_dir, f"{model_name}.tflite"),
+            'optimized_tflite_path': os.path.join(self.model_dir, f"{model_name}_optimized.tflite"),
         }
         
         self.model_metadata['models'].append(model_info)
@@ -468,50 +473,173 @@ class KeywordDetectionModelTrainer:
             model: TensorFlow model
             model_name: Name of the model
         """
-        # Convert to TFLite
-        converter = tf.lite.TFLiteConverter.from_keras_model(model)
+        # For quantization, we need a representative dataset of real inputs
+        # Collect audio files for dataset
+        audio_files = []
+        keyword_dir = os.path.join(DATA_DIR, 'keywords')
+        mixed_dir = os.path.join(DATA_DIR, 'mixed')
         
-        # Enable optimizations
-        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        # Get some keyword samples
+        for keyword in os.listdir(keyword_dir):
+            if os.path.isdir(os.path.join(keyword_dir, keyword)) and keyword != "metadata.json":
+                keyword_files = [os.path.join(keyword_dir, keyword, f) 
+                               for f in os.listdir(os.path.join(keyword_dir, keyword))[:20] 
+                               if f.endswith('.wav')]
+                audio_files.extend(keyword_files)
         
-        # Convert the model
-        tflite_model = converter.convert()
+        # Get some mixed samples if available
+        if os.path.exists(mixed_dir):
+            for keyword in os.listdir(mixed_dir):
+                if os.path.isdir(os.path.join(mixed_dir, keyword)) and keyword != "metadata.json":
+                    mixed_files = [os.path.join(mixed_dir, keyword, f) 
+                                 for f in os.listdir(os.path.join(mixed_dir, keyword))[:20] 
+                                 if f.endswith('.wav')]
+                    audio_files.extend(mixed_files)
         
-        # Save the TFLite model
+        # Shuffle to get a good mix
+        random.shuffle(audio_files)
+        audio_files = audio_files[:100]  # Limit to 100 samples for efficiency
+        
+        print(f"Using {len(audio_files)} audio samples for model quantization")
+        
+        # Ensure the model has been built with concrete input shape before conversion
+        if hasattr(model, 'input_shape') and model.input_shape[1:] is not None:
+            expected_shape = tuple(model.input_shape[1:])
+        elif hasattr(model, 'inputs') and model.inputs:
+            expected_shape = tuple(model.inputs[0].shape[1:])
+        else:
+            # If we couldn't determine shape, use a default
+            print("WARNING: Could not determine input shape from model, using default.")
+            expected_shape = (98, 13)  # Common MFCC shape
+            
+        print(f"Model expects input shape: {expected_shape}")
+            
+        # Create an input tensor with exactly the right shape
+        sample_input = np.random.random((1, *expected_shape)).astype(np.float32)
+            
+        # Run inference to ensure model is built with concrete input shape
+        _ = model(sample_input)
+        print("Model warmed up successfully with correct input shape")
+            
+        # Ensure the model has been built with concrete input shape
+        # Extract features from at least one sample to use as calibration data
+        calibration_data = []
+        for file_path in audio_files[:5]:  # Just need a few samples
+            try:
+                features = self._extract_features_from_file(file_path)
+                if features is not None:
+                    # Add batch dimension
+                    features_batch = np.expand_dims(features, axis=0).astype(np.float32)
+                    calibration_data.append(features_batch)
+                    # Call the model to ensure it's built with concrete input shape
+                    _ = model(features_batch)
+            except Exception as e:
+                print(f"Error processing calibration sample: {str(e)}")
+                continue
+        
+        # If we couldn't process any real samples, create a random input tensor
+        if not calibration_data:
+            input_shape = model.input_shape[1:]  # Get input shape excluding batch dimension
+            random_input = np.random.random((1, *input_shape)).astype(np.float32)
+            # Call the model to ensure it's built with concrete input shape
+            _ = model(random_input)
+        
+        # Try to determine the model's expected input shape
+        expected_shape = None
+        
+        # Try different methods to get the input shape
+        if hasattr(model, 'input_shape') and model.input_shape[1:] is not None:
+            expected_shape = tuple(model.input_shape[1:])
+        elif hasattr(model, 'inputs') and model.inputs:
+            expected_shape = tuple(model.inputs[0].shape[1:])
+        else:
+            # Try to get input shape from layers
+            for layer in model.layers:
+                if hasattr(layer, 'input_shape') and layer.input_shape is not None:
+                    expected_shape = tuple(layer.input_shape[1:])
+                    break
+        
+        # If shape still not determined, use a default
+        if expected_shape is None:
+            print("WARNING: Could not determine input shape, using default shape")
+            expected_shape = (98, 13)  # Common MFCC shape
+            
+        print(f"Using input shape {expected_shape} for representative dataset")
+        
+        # Create a representative dataset generator that matches the expected input shape
+        def representative_dataset():
+            # First provide purely synthetic data with exact expected shape
+            for _ in range(50):  # Always provide at least 50 synthetic samples
+                data = np.random.random((1, *expected_shape)).astype(np.float32)
+                yield [data.astype(np.float32)]
+                
+            # Then try to provide some real data samples if available
+            real_samples_count = 0
+            for file_path in audio_files[:50]:  # Limit to first 50 audio files
+                try:
+                    # Extract features using the same method as during training
+                    features = self._extract_features_from_file(file_path)
+                    if features is not None:
+                        # Check if shapes match
+                        if features.shape == expected_shape:
+                            # Add batch dimension and ensure float32 format
+                            features_batch = np.expand_dims(features, axis=0).astype(np.float32)
+                            yield [features_batch]
+                            real_samples_count += 1
+                        else:
+                            # Skip samples with wrong shape to avoid errors
+                            pass
+                except Exception as e:
+                    # Just skip problematic samples quietly
+                    continue
+                    
+            print(f"Provided {real_samples_count} real samples in representative dataset")
+        
+        # First create a standard (non-optimized) TFLite model
+        print("Creating standard TFLite model...")
+        standard_converter = tf.lite.TFLiteConverter.from_keras_model(model)
+        standard_converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        standard_tflite_model = standard_converter.convert()
+        
+        # Save the standard TFLite model
         tflite_path = os.path.join(self.model_dir, f"{model_name}.tflite")
         with open(tflite_path, 'wb') as f:
-            f.write(tflite_model)
+            f.write(standard_tflite_model)
         
-        print(f"TFLite model saved to {tflite_path}")
-        
-        # Create a quantized version for even smaller size
-        converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-        converter.inference_input_type = tf.int8
-        converter.inference_output_type = tf.int8
-        
-        # Create a representative dataset from random noise
-        def representative_dataset():
-            for _ in range(100):
-                data = np.random.random((1, *model.input.shape[1:]))
-                yield [data.astype(np.float32)]
-        
-        converter.representative_dataset = representative_dataset
-        
-        # Convert to quantized model
-        try:
-            quantized_model = converter.convert()
+        print(f"Standard TFLite model saved to {tflite_path}")
             
-            # Save the quantized model
-            quantized_path = os.path.join(self.model_dir, f"{model_name}_quantized.tflite")
-            with open(quantized_path, 'wb') as f:
-                f.write(quantized_model)
-            
-            print(f"Quantized TFLite model saved to {quantized_path}")
+        # Now create fully optimized model for Android
+        print("Creating optimized TFLite model for Android...")
         
-        except Exception as e:
-            print(f"Error creating quantized model: {str(e)}")
+        # Define the path for our optimized model
+        optimized_tflite_path = os.path.join(self.model_dir, f"{model_name}_optimized.tflite")
+        optimized_converter = tf.lite.TFLiteConverter.from_keras_model(model)
+        optimized_converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        optimized_converter.representative_dataset = representative_dataset
+        optimized_converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        optimized_converter.inference_input_type = tf.int8
+        optimized_converter.inference_output_type = tf.int8
+            
+        # Set experimental options for better compatibility
+        optimized_converter._experimental_lower_tensor_list_ops = False
+            
+        optimized_tflite_model = optimized_converter.convert()
+            
+        # Save the optimized TFLite model
+        with open(optimized_tflite_path, 'wb') as f:
+            f.write(optimized_tflite_model)
+            
+        print(f"Fully optimized INT8 TFLite model saved to {optimized_tflite_path}")
+        optimization_note = "INT8 quantization"
+            
+        # Update metadata to include optimized model path and note
+        if hasattr(self, 'model_metadata'):
+            # Find this model in metadata
+            for model_info in self.model_metadata['models']:
+                if model_info['name'] == model_name:
+                    model_info['optimized_tflite_path'] = optimized_tflite_path
+                    model_info['optimization_note'] = optimization_note
+                    break
     
     def _plot_training_history(self, history, model_name):
         """
@@ -523,6 +651,7 @@ class KeywordDetectionModelTrainer:
         """
         # Create plots directory if it doesn't exist
         plots_dir = os.path.join(self.model_dir, 'plots')
+        plots_dir = plots_dir.replace(' ', '_')  # Replace spaces with underscores in directory name
         os.makedirs(plots_dir, exist_ok=True)
         
         # Plot accuracy
@@ -562,8 +691,9 @@ class KeywordDetectionModelTrainer:
             keywords: List of keywords
             model_name: Name of the model
         """
-        # Create plots directory if it doesn't exist
+        # Create plots directory if it doesn't exist (use sanitized name)
         plots_dir = os.path.join(self.model_dir, 'plots')
+        plots_dir = plots_dir.replace(' ', '_')  # Replace spaces with underscores in directory name
         os.makedirs(plots_dir, exist_ok=True)
         
         # Get predictions
@@ -668,21 +798,21 @@ class KeywordDetectionModelTrainer:
                 json.dump(simple_report, f, indent=2)
 
 def main():
-    parser = argparse.ArgumentParser(description='Train a keyword detection model')
+    parser = argparse.ArgumentParser(description='Train a neural network model for keyword detection')
     parser.add_argument('--keywords', type=str, nargs='+', default=[DEFAULT_KEYWORD], 
-                        help='Keywords to detect')
+                        help=f'Keywords to train the model to detect (default: "{DEFAULT_KEYWORD}")')
     parser.add_argument('--data-dir', type=str, default=DATA_DIR, 
-                        help='Directory containing audio data')
+                        help=f'Directory containing mixed audio training data (default: {DATA_DIR})')
     parser.add_argument('--model-dir', type=str, default=MODELS_DIR, 
-                        help='Directory to save trained models')
+                        help=f'Directory to save trained models (default: {MODELS_DIR})')
     parser.add_argument('--epochs', type=int, default=DEFAULT_EPOCHS, 
                         help=f'Number of training epochs (default: {DEFAULT_EPOCHS})')
     parser.add_argument('--batch-size', type=int, default=DEFAULT_BATCH_SIZE, 
                         help=f'Training batch size (default: {DEFAULT_BATCH_SIZE})')
     parser.add_argument('--learning-rate', type=float, default=DEFAULT_LEARNING_RATE, 
-                        help=f'Initial learning rate (default: {DEFAULT_LEARNING_RATE})')
+                        help=f'Initial learning rate for optimizer (default: {DEFAULT_LEARNING_RATE})')
     parser.add_argument('--negative-samples-ratio', type=float, default=DEFAULT_NEGATIVE_SAMPLES_RATIO, 
-                        help=f'Ratio of negative samples to include relative to positives (default: {DEFAULT_NEGATIVE_SAMPLES_RATIO})')
+                        help=f'Ratio of negative samples to include relative to positives (default: {DEFAULT_NEGATIVE_SAMPLES_RATIO}x)')
     args = parser.parse_args()
     
     trainer = KeywordDetectionModelTrainer(args.data_dir, args.model_dir)

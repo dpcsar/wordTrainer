@@ -20,11 +20,11 @@ fi
 
 echo "Latest model: $LATEST_MODEL"
 
-# Step 1: Test model with gTTS samples
-echo -e "\n[Step 1/2] Testing model with gTTS samples..."
-python main.py test-gtts
+# Step 1: Test model with TTS samples
+echo -e "\n[Step 1/2] Testing model with TTS samples..."
+python main.py test-tts
 if [ $? -ne 0 ]; then
-  echo "Error testing model with gTTS samples."
+  echo "Error testing model with TTS samples."
   exit 1
 fi
 

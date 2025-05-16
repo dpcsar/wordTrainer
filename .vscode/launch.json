@@ -66,14 +66,14 @@
             ]
         },
         {
-            "name": "Test Model (gTTS)",
+            "name": "Test Model (TTS)",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "test-gtts",
+                "test-tts",
             ]
         },
         {

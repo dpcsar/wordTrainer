@@ -29,16 +29,13 @@ FEATURE_PARAMS = {
 # Training settings
 DEFAULT_LEARNING_RATE = 0.001
 DEFAULT_BATCH_SIZE = 32
-DEFAULT_EPOCHS = 50
+DEFAULT_EPOCHS = 50             # NOTE: Early stopping is used
 VALIDATION_SPLIT = 0.3
 EARLY_STOPPING_PATIENCE = 10
 
 # Detection settings
 DEFAULT_DETECTION_THRESHOLD = 0.5
 DEFAULT_KEYWORD = "hey jarvis"  # Default keyword for model training and testing
-
-# Age groups for simulation
-AGE_GROUPS = ['child', 'young_adult', 'adult', 'senior']
 
 # Background noise types
 NOISE_TYPES = ['propeller', 'jet', 'cockpit']

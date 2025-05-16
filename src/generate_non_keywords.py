@@ -19,10 +19,8 @@ from tqdm import tqdm
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import (ACCENTS, AGE_GROUPS, NON_KEYWORDS, SAMPLE_RATE,
-                    DEFAULT_NON_KEYWORD_SAMPLES, DEFAULT_SILENCE_MS, KEYWORDS_DIR,
-                    DEFAULT_KEYWORD, GOOGLE_TTS_AUDIO_CONFIG)
-from src.audio_utils import adjust_pitch_by_age
+from config import (ACCENTS, NON_KEYWORDS, SAMPLE_RATE, DEFAULT_NON_KEYWORD_SAMPLES, 
+                    DEFAULT_SILENCE_MS, KEYWORDS_DIR, DEFAULT_KEYWORD, GOOGLE_TTS_AUDIO_CONFIG)
 
 class NonKeywordGenerator:
     def __init__(self, output_dir, sample_rate=SAMPLE_RATE):
@@ -95,7 +93,6 @@ class NonKeywordGenerator:
             
             # Randomly select accent, age, gender
             accent_info = random.choice(ACCENTS)
-            age_group = random.choice(AGE_GROUPS)
             gender = accent_info["gender"]  # Use the gender from the accent info
             
             # Generate a unique ID for this sample
@@ -104,9 +101,11 @@ class NonKeywordGenerator:
             # Get accent code for filename (e.g., "us", "uk", "au")
             country_code = accent_info["accent"]
                 
-            # Generate filename
-            filename = f"nonkw_{non_keyword}_{country_code}_{age_group}_{gender}_{sample_id}.wav"
+            # Generate filename (replace spaces with underscores)
+            filename = f"nonkw_{non_keyword}_{country_code}_{gender}_{sample_id}.wav".replace(' ', '_')
             file_path = os.path.join(non_keywords_dir, filename)
+            # Also replace spaces with underscores in the path
+            file_path = file_path.replace(' ', '_')
             
             # Generate TTS audio
             try:
@@ -148,9 +147,6 @@ class NonKeywordGenerator:
                 silence = AudioSegment.silent(duration=silence_ms)
                 audio = silence + audio + silence
                 
-                # Adjust pitch based on age group only
-                audio = adjust_pitch_by_age(audio, age_group)
-                
                 # Export wav file
                 audio = audio.set_channels(1)  # mono
                 audio = audio.set_frame_rate(self.sample_rate)  # resample
@@ -164,7 +160,6 @@ class NonKeywordGenerator:
                     'accent': accent_info["accent"],
                     'accent_name': accent_info["accent_name"],
                     'voice_name': accent_info["voice_name"],
-                    'age_group': age_group,
                     'gender': gender,
                     'duration_ms': len(audio),
                 }
@@ -187,14 +182,15 @@ class NonKeywordGenerator:
         print(f"Generated {samples_needed} non-keyword samples")
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate non-keyword speech samples using Google Cloud Text-to-Speech')
+    parser = argparse.ArgumentParser(description='Generate non-keyword speech samples using Google Cloud Text-to-Speech API')
     parser.add_argument('--samples', type=int, default=DEFAULT_NON_KEYWORD_SAMPLES, 
-                        help=f'Number of samples to generate (default: {DEFAULT_NON_KEYWORD_SAMPLES})')
-    parser.add_argument('--output-dir', type=str, default=KEYWORDS_DIR, help='Output directory')
+                        help=f'Number of non-keyword samples to generate for training (default: {DEFAULT_NON_KEYWORD_SAMPLES})')
+    parser.add_argument('--output-dir', type=str, default=KEYWORDS_DIR, 
+                        help=f'Output directory for generated non-keyword samples (default: {KEYWORDS_DIR})')
     parser.add_argument('--silence', type=int, default=DEFAULT_SILENCE_MS, 
-                        help=f'Silence to add at beginning and end in milliseconds (default: {DEFAULT_SILENCE_MS})')
+                        help=f'Silence padding to add at beginning and end in milliseconds (default: {DEFAULT_SILENCE_MS}ms)')
     parser.add_argument('--avoid-keyword', type=str, default=DEFAULT_KEYWORD,
-                        help=f'Keyword to avoid using as non-keyword (default: {DEFAULT_KEYWORD})')
+                        help=f'Target keyword to avoid using in non-keyword phrases (default: "{DEFAULT_KEYWORD}")')
     args = parser.parse_args()
     
     generator = NonKeywordGenerator(args.output_dir)

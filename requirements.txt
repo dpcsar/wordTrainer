@@ -1,5 +1,5 @@
+tensorflow-cpu>=2.19.0
 numpy
-tensorflow-cpu
 google-cloud-texttospeech
 pydub
 librosa
@@ -9,3 +9,4 @@ matplotlib
 scipy
 tqdm
 seaborn
+scikit-learn

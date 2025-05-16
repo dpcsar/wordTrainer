@@ -41,9 +41,9 @@ class AudioMixer:
             output_dir: Directory to save mixed samples
             sample_rate: Target sample rate for audio files
         """
-        self.keywords_dir = keywords_dir
-        self.backgrounds_dir = backgrounds_dir
-        self.output_dir = output_dir
+        self.keywords_dir = keywords_dir.replace(' ', '_')
+        self.backgrounds_dir = backgrounds_dir.replace(' ', '_')
+        self.output_dir = output_dir.replace(' ', '_')
         self.sample_rate = sample_rate
         self.metadata = {}
         
@@ -96,7 +96,8 @@ class AudioMixer:
         
         samples = []
         for sample in self.keywords_metadata[keyword]['samples']:
-            file_path = os.path.join(self.keywords_dir, keyword, sample['file'])
+            keyword_dir = keyword.replace(' ', '_')
+            file_path = os.path.join(self.keywords_dir, keyword_dir, sample['file'])
             if os.path.exists(file_path):
                 samples.append({
                     'path': file_path,
@@ -248,7 +249,8 @@ class AudioMixer:
             os.makedirs(self.output_dir, exist_ok=True)
         
         # Create category directory in output
-        category_dir = os.path.join(self.output_dir, category)
+        sanitized_category = category.replace(' ', '_')  # Replace spaces with underscores in directory name
+        category_dir = os.path.join(self.output_dir, sanitized_category)
         os.makedirs(category_dir, exist_ok=True)
         
         # Print path for debugging
@@ -282,9 +284,13 @@ class AudioMixer:
             # Different filename format for keywords vs non-keywords
             if is_non_keyword:
                 non_keyword_value = sample.get('non_keyword', sample['metadata'].get('non_keyword', 'unknown'))
+                # Replace spaces with underscores
+                non_keyword_value = non_keyword_value.replace(' ', '_')
                 filename = f"non_keyword_{non_keyword_value}_{noise_type}_{snr_str}db_{sample_id}.wav"
             else:
-                filename = f"{category}_{noise_type}_{snr_str}db_{sample_id}.wav"
+                # Replace spaces with underscores in category
+                category_clean = category.replace(' ', '_')
+                filename = f"{category_clean}_{noise_type}_{snr_str}db_{sample_id}.wav"
                 
             file_path = os.path.join(category_dir, filename)
             
@@ -328,19 +334,25 @@ class AudioMixer:
         print(f"Mixed {num_mixes} samples for {category}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Mix keyword and non-keyword samples with background noise')
-    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, help=f'Keyword to mix (default: {DEFAULT_KEYWORD})')
+    parser = argparse.ArgumentParser(description='Mix keyword and non-keyword samples with background noise for model training')
+    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD, 
+                       help=f'Target keyword to mix with background noise (default: "{DEFAULT_KEYWORD}")')
     parser.add_argument('--noise-types', type=str, nargs='+', choices=NOISE_TYPES, 
-                        help=f'Types of background noise to mix with (default: all)')
+                       help=f'Types of background noise to mix with (choices: {", ".join(NOISE_TYPES)}; default: all types)')
     parser.add_argument('--num-mixes', type=int, default=None, 
-                        help=f'Number of mixed samples to generate (default: {DEFAULT_NUM_MIXES_SAMPLES} for keywords, {DEFAULT_NUM_MIXES_NON_KEY_WORDS} for non-keywords)')
-    parser.add_argument('--min-snr', type=float, default=DEFAULT_SNR_RANGE[0], help=f'Minimum SNR in dB (default: {DEFAULT_SNR_RANGE[0]})')
-    parser.add_argument('--max-snr', type=float, default=DEFAULT_SNR_RANGE[1], help=f'Maximum SNR in dB (default: {DEFAULT_SNR_RANGE[1]})')
+                       help=f'Number of mixed samples to generate (default: {DEFAULT_NUM_MIXES_SAMPLES} for keywords, {DEFAULT_NUM_MIXES_NON_KEY_WORDS} for non-keywords)')
+    parser.add_argument('--min-snr', type=float, default=DEFAULT_SNR_RANGE[0], 
+                       help=f'Minimum Signal-to-Noise Ratio in dB (default: {DEFAULT_SNR_RANGE[0]}dB)')
+    parser.add_argument('--max-snr', type=float, default=DEFAULT_SNR_RANGE[1], 
+                       help=f'Maximum Signal-to-Noise Ratio in dB (default: {DEFAULT_SNR_RANGE[1]}dB)')
     
     # Use directory paths from config for better consistency
-    parser.add_argument('--keywords-dir', type=str, default=KEYWORDS_DIR, help='Keywords directory')
-    parser.add_argument('--backgrounds-dir', type=str, default=BACKGROUNDS_DIR, help='Backgrounds directory')
-    parser.add_argument('--output-dir', type=str, default=MIXED_DIR, help='Output directory')
+    parser.add_argument('--keywords-dir', type=str, default=KEYWORDS_DIR, 
+                       help=f'Directory containing keyword and non-keyword samples (default: {KEYWORDS_DIR})')
+    parser.add_argument('--backgrounds-dir', type=str, default=BACKGROUNDS_DIR, 
+                       help=f'Directory containing background noise samples (default: {BACKGROUNDS_DIR})')
+    parser.add_argument('--output-dir', type=str, default=MIXED_DIR, 
+                       help=f'Output directory for mixed audio samples (default: {MIXED_DIR})')
     args = parser.parse_args()
     
     mixer = AudioMixer(args.keywords_dir, args.backgrounds_dir, args.output_dir)

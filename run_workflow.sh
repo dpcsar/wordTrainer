@@ -12,7 +12,7 @@ echo "Starting keyword detection workflow for keyword: $KEYWORD"
 echo "======================================================="
 
 # Step 1: Generate keyword samples
-echo -e "\n[Step 1/7] Generating keyword samples using gTTS..."
+echo -e "\n[Step 1/7] Generating keyword samples using TTS..."
 python main.py generate-keywords
 if [ $? -ne 0 ]; then
   echo "Error generating keyword samples. Exiting."
@@ -57,7 +57,9 @@ if [ $? -ne 0 ]; then
 fi
 
 # Find the latest model
-LATEST_MODEL=$(find models -name "keyword_detection_${KEYWORD}*.tflite" | sort | tail -n 1)
+# Replace spaces with underscores in keyword for finding the model
+SANITIZED_KEYWORD=${KEYWORD// /_}
+LATEST_MODEL=$(find models -name "keyword_detection_${SANITIZED_KEYWORD}*.tflite" | sort | tail -n 1)
 if [ -z "$LATEST_MODEL" ]; then
   echo "No trained model found. Exiting."
   exit 1
@@ -65,11 +67,11 @@ fi
 
 echo "Latest model: $LATEST_MODEL"
 
-# Step 6: Test model with gTTS samples
-echo -e "\n[Step 6/7] Testing model with gTTS samples..."
-python main.py test-gtts
+# Step 6: Test model with TTS samples
+echo -e "\n[Step 6/7] Testing model with TTS samples..."
+python main.py test-tts
 if [ $? -ne 0 ]; then
-  echo "Error testing model with gTTS samples."
+  echo "Error testing model with TTS samples."
   exit 1
 fi
 

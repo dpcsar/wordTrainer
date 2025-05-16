@@ -8,25 +8,46 @@ import sys
 import argparse
 import json
 import shutil
-import tensorflow as tf
+import numpy as np
+import random
 from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.audio_utils import load_audio, extract_features
+from src.path_utils import find_latest_model_by_keyword
+from config import FEATURE_PARAMS, DATA_DIR, DEFAULT_KEYWORD
 
 def prepare_for_android(model_path, output_dir=None):
     """
     Prepare a trained model for Android integration.
     
     Args:
-        model_path: Path to trained model (.tflite)
+        model_path: Path to trained model (only .tflite supported)
         output_dir: Output directory for Android assets
         
     Returns:
         output_path: Path to prepared model
     """
+    # Check if the model file exists
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found: {model_path}")
+        
+    # We only support TFLite models now (TensorFlow dependency removed)
     if not model_path.endswith('.tflite'):
-        raise ValueError("Model must be in TFLite format (.tflite)")
+        raise ValueError("Only TFLite models (.tflite) are supported")
+    
+    # Always check for and use an optimized version of the model if available
+    if not model_path.endswith('_optimized.tflite'):
+        model_name = os.path.basename(model_path).split('.')[0]
+        model_dir = os.path.dirname(model_path)
+        optimized_path = os.path.join(model_dir, f"{model_name}_optimized.tflite")
+        
+        if os.path.exists(optimized_path):
+            print(f"Using optimized version of model: {optimized_path}")
+            model_path = optimized_path
+        else:
+            print(f"No optimized model found at {optimized_path}, using standard model instead.")
     
     # Get model name
     model_name = os.path.basename(model_path).split('.')[0]
@@ -37,9 +58,12 @@ def prepare_for_android(model_path, output_dir=None):
     
     os.makedirs(output_dir, exist_ok=True)
     
-    # Copy model file
-    output_path = os.path.join(output_dir, f"{model_name}.tflite")
+    # Create output filename (replace spaces with underscores)
+    output_filename = f"{model_name}.tflite".replace(' ', '_')
+    
+    output_path = os.path.join(output_dir, output_filename)
     shutil.copy(model_path, output_path)
+    print(f"Copied model to {output_path}")
     
     # Load model metadata
     model_dir = os.path.dirname(model_path)
@@ -52,7 +76,7 @@ def prepare_for_android(model_path, output_dir=None):
         # Find this specific model in the metadata
         model_info = None
         for model in model_metadata['models']:
-            if model['name'] == model_name:
+            if model['name'] == model_name.replace('_optimized', ''):  # Strip 'optimized' suffix if present
                 model_info = model
                 break
         
@@ -70,6 +94,7 @@ def prepare_for_android(model_path, output_dir=None):
             }
             
             config_path = os.path.join(output_dir, f"{model_name}_config.json")
+            config_path = config_path.replace(' ', '_')
             with open(config_path, 'w') as f:
                 json.dump(android_config, f, indent=2)
             
@@ -389,7 +414,9 @@ class KeywordDetector(
     os.makedirs(kotlin_dir, exist_ok=True)
     
     # Write KeywordDetector.kt
-    with open(os.path.join(kotlin_dir, 'KeywordDetector.kt'), 'w') as f:
+    file_path = os.path.join(kotlin_dir, 'KeywordDetector.kt')
+    file_path = file_path.replace(' ', '_')
+    with open(file_path, 'w') as f:
         f.write(kotlin_code)
     
     # Create README with integration instructions
@@ -464,24 +491,51 @@ Don't forget to request the permission at runtime for Android 6.0+.
     print(f"README with integration instructions written to {os.path.join(output_dir, 'README.md')}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Prepare trained model for Android integration')
-    parser.add_argument('--model', type=str, required=True, 
-                        help='Path to trained model (.tflite)')
+    parser = argparse.ArgumentParser(description='Prepare trained model for Android integration and deployment')
+    parser.add_argument('--model', type=str, required=False, 
+                        help='Path to trained model file (.tflite format). If not specified, the latest model will be used.')
     parser.add_argument('--output-dir', type=str, 
-                        help='Output directory for Android assets')
+                        help='Output directory for Android assets and generated files')
     parser.add_argument('--package-name', type=str, default="com.example.keyworddetection",
-                        help='Android package name')
-    parser.add_argument('--create-template', action='store_true',
-                        help='Create Android integration template')
+                        help='Android package name for template generation (default: com.example.keyworddetection)')
+    parser.add_argument('--no-template', action='store_true',
+                        help='Skip creation of Android integration template project')
+    parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD,
+                        help=f'Keyword to find the latest model for (default: "{DEFAULT_KEYWORD}")')
     args = parser.parse_args()
     
-    # Prepare model for Android
-    output_path = prepare_for_android(args.model, args.output_dir)
+    # If no model path specified, find the latest model for the given keyword
+    model_path = args.model
+    if model_path is None:
+        model_path = find_latest_model_by_keyword(args.keyword)
+        if not model_path:
+            print(f"Error: No model found for keyword '{args.keyword}'")
+            return 1
+        
+        if not model_path.endswith('.tflite'):
+            print(f"Error: Only TFLite models (.tflite) are supported, found: {os.path.basename(model_path)}")
+            return 1
+            
+        print(f"Found latest model for keyword '{args.keyword}': {os.path.basename(model_path)}")
     
-    # Create Android template if requested
-    if args.create_template:
+    # Check if model exists
+    if not os.path.exists(model_path):
+        print(f"Error: Model file not found: {model_path}")
+        return 1
+        
+    # Prepare model for Android
+    try:
+        output_path = prepare_for_android(model_path, args.output_dir)
+    except ValueError as e:
+        print(f"Error: {str(e)}")
+        return 1
+        
+    # Create Android template by default unless --no-template is specified
+    if not args.no_template:
         template_dir = os.path.dirname(output_path) if args.output_dir is None else args.output_dir
         create_android_template(template_dir, args.package_name)
+            
+    return 0
 
 if __name__ == '__main__':
     main()

@@ -7,6 +7,7 @@ import argparse
 import numpy as np
 import json
 import tensorflow as tf
+from ai_edge_litert.interpreter import Interpreter
 import time
 import sys
 import threading
@@ -67,10 +68,12 @@ class MicrophoneDetector:
             
             # Find this specific model in the metadata
             model_name = os.path.basename(model_path).split('.')[0]
+            # Handle optimized models by removing the _optimized suffix
+            base_model_name = model_name.replace('_optimized', '')
             model_info = None
             
             for model in self.model_metadata['models']:
-                if model['name'] == model_name:
+                if model['name'] == model_name or model['name'] == base_model_name:
                     model_info = model
                     break
             
@@ -80,7 +83,9 @@ class MicrophoneDetector:
                 self.class_names = ['negative'] + self.keywords
                 print(f"Model keywords: {self.keywords}")
             else:
-                raise ValueError(f"Model {model_name} not found in metadata")
+                # More descriptive error message
+                base_name = model_name.replace('_optimized', '')
+                raise ValueError(f"Model {model_name} not found in metadata. Available models: {[model['name'] for model in self.model_metadata['models']]}")
         else:
             print(f"Warning: Model metadata not found at {metadata_path}")
             self.keywords = []
@@ -111,7 +116,7 @@ class MicrophoneDetector:
             model_path: Path to .tflite model file
         """
         self.model_type = 'tflite'
-        self.interpreter = tf.lite.Interpreter(model_path=model_path)
+        self.interpreter = Interpreter(model_path=model_path)
         self.interpreter.allocate_tensors()
         
         # Get input and output details
@@ -120,7 +125,16 @@ class MicrophoneDetector:
         
         print(f"Loaded TFLite model from {model_path}")
         print(f"Input shape: {self.input_details[0]['shape']}")
+        print(f"Input type: {self.input_details[0]['dtype']}")
         print(f"Output shape: {self.output_details[0]['shape']}")
+        
+        # Check if the model is quantized
+        if self.input_details[0]['dtype'] == np.int8:
+            print("This is a quantized INT8 model")
+            if 'quantization_parameters' in self.input_details[0]:
+                scale = self.input_details[0]['quantization_parameters']['scales'][0]
+                zero_point = self.input_details[0]['quantization_parameters']['zero_points'][0]
+                print(f"Input quantization scale: {scale}, zero point: {zero_point}")
     
     def audio_callback(self, indata, frames, time, status):
         """
@@ -235,8 +249,10 @@ class MicrophoneDetector:
             return predictions[0]
         
         else:  # TFLite
-            # Get expected input shape
+            # Get expected input shape and data type
             input_shape = self.input_details[0]['shape']
+            input_type = self.input_details[0]['dtype']
+            is_quantized = input_type == np.int8
             
             # Check if dimensions match and reshape if needed
             if features.shape[0] != input_shape[1] or features.shape[1] != input_shape[2]:
@@ -247,7 +263,22 @@ class MicrophoneDetector:
                     pass
             
             # Ensure features have correct shape for input (add batch dimension)
-            features_batch = np.expand_dims(features, axis=0).astype(np.float32)
+            features_batch = np.expand_dims(features, axis=0)
+            
+            # For quantized models, convert float values to int8
+            if is_quantized:
+                if 'quantization_parameters' in self.input_details[0]:
+                    quantization_params = self.input_details[0]['quantization_parameters']
+                    scale = quantization_params['scales'][0]
+                    zero_point = quantization_params['zero_points'][0]
+                    
+                    # Convert float to int8 using scale and zero point
+                    features_batch = (features_batch / scale + zero_point).astype(np.int8)
+                else:
+                    # If quantization parameters are not available, use a simpler estimation
+                    features_batch = np.clip(features_batch * 10, -128, 127).astype(np.int8)
+            else:
+                features_batch = features_batch.astype(np.float32)
             
             try:
                 # Set input tensor
@@ -258,6 +289,14 @@ class MicrophoneDetector:
                 
                 # Get output tensor
                 predictions = self.interpreter.get_tensor(self.output_details[0]['index'])
+                
+                # If output is quantized, dequantize it
+                if len(self.output_details[0]['shape']) > 0 and 'quantization_parameters' in self.output_details[0]:
+                    quantization_params = self.output_details[0]['quantization_parameters']
+                    if quantization_params['scales'] and quantization_params['zero_points']:
+                        scale = quantization_params['scales'][0]
+                        zero_point = quantization_params['zero_points'][0]
+                        predictions = scale * (predictions.astype(np.float32) - zero_point)
                 
                 return predictions[0]
             except Exception as e:
@@ -351,17 +390,17 @@ class MicrophoneDetector:
                 print("Stopping...")
 
 def main():
-    parser = argparse.ArgumentParser(description='Test keyword detection model using microphone')
+    parser = argparse.ArgumentParser(description='Test keyword detection model using live microphone input')
     parser.add_argument('--model', type=str,
-                        help='Path to trained model (.h5 or .tflite)')
+                        help='Path to trained model file (.keras or .tflite format)')
     parser.add_argument('--keyword', type=str, default=DEFAULT_KEYWORD,
-                        help=f'Keyword to find the latest model for (default: {DEFAULT_KEYWORD})')
+                        help=f'Keyword to find the latest model for (default: "{DEFAULT_KEYWORD}")')
     parser.add_argument('--threshold', type=float, default=DEFAULT_DETECTION_THRESHOLD, 
-                        help=f'Detection threshold (default: {DEFAULT_DETECTION_THRESHOLD})')
+                        help=f'Detection confidence threshold (0.0-1.0) (default: {DEFAULT_DETECTION_THRESHOLD})')
     parser.add_argument('--device', type=int, 
-                        help='Audio device index')
+                        help='Audio input device index (use system default if not specified)')
     parser.add_argument('--list-models', action='store_true',
-                        help='List available models and exit')
+                        help='List all available trained models and exit')
     args = parser.parse_args()
     
     # List available models if requested

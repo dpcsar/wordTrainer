@@ -99,39 +99,6 @@ def resample_audio(audio, orig_sr, target_sr):
     
     return resampled
 
-def adjust_pitch_by_age(audio, age_group, reference_frame_rate=44100):
-    """
-    Adjust audio pitch based on age group.
-    
-    Args:
-        audio: AudioSegment object to modify
-        age_group: Age group ('child', 'young_adult', 'adult', 'senior')
-        reference_frame_rate: Reference frame rate to reset to after modification
-    
-    Returns:
-        AudioSegment: Audio with adjusted pitch
-    """
-    octaves = 0  # Default: no change
-    
-    # Adjust pitch based on age group
-    if age_group == 'child':
-        octaves = 0.2  # higher pitch for children
-    elif age_group == 'young_adult':
-        octaves = 0.0  # no change for young adults
-    elif age_group == 'adult':
-        octaves = -0.1  # slightly lower for adults
-    elif age_group == 'senior':
-        octaves = -0.3  # lower pitch for seniors
-    
-    # Only modify if there's a pitch change
-    if octaves != 0:
-        audio = audio._spawn(audio.raw_data, overrides={
-            "frame_rate": int(audio.frame_rate * (2.0 ** octaves))
-        })
-        audio = audio.set_frame_rate(reference_frame_rate)
-    
-    return audio
-
 def normalize_audio(audio):
     """
     Normalize audio to have max amplitude of 1.
@@ -145,15 +112,6 @@ def normalize_audio(audio):
     if np.max(np.abs(audio)) > 0:
         return audio / np.max(np.abs(audio))
     return audio
-
-# Keep this alias for backward compatibility
-# It calls the new function, ignoring the gender parameter
-def adjust_pitch_by_age_gender(audio, age_group, gender=None, reference_frame_rate=44100):
-    """
-    Legacy function that calls adjust_pitch_by_age, ignoring the gender parameter.
-    Kept for backward compatibility.
-    """
-    return adjust_pitch_by_age(audio, age_group, reference_frame_rate)
 
 def add_noise(audio, noise_level=0.005):
     """
@@ -287,6 +245,11 @@ def save_audio(audio, file_path, sr=SAMPLE_RATE):
         file_path: Path to saved file
     """
     try:
+        # Replace spaces with underscores in the filename
+        directory, filename = os.path.split(file_path)
+        filename = filename.replace(' ', '_')
+        file_path = os.path.join(directory, filename)
+        
         # Create parent directory if it doesn't exist
         os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
         
